@@ -47,7 +47,11 @@ CAN_HandleTypeDef hcan;
 I2C_HandleTypeDef hi2c1;
 
 /* USER CODE BEGIN PV */
-
+CAN_RxHeaderTypeDef   rxHeader;
+uint8_t				  rxData[8];
+CAN_TxHeaderTypeDef   txHeader;
+uint8_t               txData[8];
+uint32_t              txMailbox;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -63,6 +67,12 @@ static void MX_I2C1_Init(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
+void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan) {
+	if (HAL_CAN_GetRxMessage(hcan, CAN_RX_FIFO0, &rxHeader, rxData) != HAL_OK) {
+		Error_Handler();
+	}
+
+}
 /* USER CODE END 0 */
 
 /**
@@ -72,7 +82,12 @@ static void MX_I2C1_Init(void);
 int main(void)
 {
   /* USER CODE BEGIN 1 */
-
+  txHeader.IDE = CAN_ID_STD;
+  txHeader.StdId = 0x001;
+  txHeader.RTR = CAN_RTR_DATA;
+  txHeader.DLC = 2;
+  txData[0] = 'n';
+  txData[1] = 'o';
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -97,6 +112,29 @@ int main(void)
   MX_CAN_Init();
   MX_I2C1_Init();
   /* USER CODE BEGIN 2 */
+  CAN_FilterTypeDef sFilterConfig;
+
+
+  sFilterConfig.FilterFIFOAssignment=CAN_RX_FIFO0; //set fifo assignment
+  sFilterConfig.FilterIdHigh = 0;
+  sFilterConfig.FilterIdLow = 0;
+  sFilterConfig.FilterMaskIdHigh = 0;
+  sFilterConfig.FilterMaskIdLow = 0;
+  sFilterConfig.FilterScale=CAN_FILTERSCALE_32BIT; //set filter scale
+  sFilterConfig.FilterActivation=ENABLE;
+  sFilterConfig.FilterBank = 5;
+  sFilterConfig.FilterMode = CAN_FILTERMODE_IDMASK;
+  HAL_CAN_ConfigFilter(&hcan, &sFilterConfig);
+
+  if (HAL_CAN_Start(&hcan) != HAL_OK)
+  {
+     Error_Handler ();
+  }
+
+  if (HAL_CAN_ActivateNotification(&hcan, CAN_IT_RX_FIFO0_MSG_PENDING) != HAL_OK)
+  {
+      Error_Handler();
+  }
 
   /* USER CODE END 2 */
 
@@ -107,6 +145,11 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+	if (HAL_CAN_AddTxMessage(&hcan, &txHeader, txData, &txMailbox) != HAL_OK)
+	{
+	   Error_Handler ();
+	}
+	HAL_Delay(1000);
   }
   /* USER CODE END 3 */
 }
@@ -125,9 +168,9 @@ void SystemClock_Config(void)
   * in the RCC_OscInitTypeDef structure.
   */
   RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI|RCC_OSCILLATORTYPE_HSI14
-                              |RCC_OSCILLATORTYPE_HSI48;
+                              |RCC_OSCILLATORTYPE_HSE;
+  RCC_OscInitStruct.HSEState = RCC_HSE_ON;
   RCC_OscInitStruct.HSIState = RCC_HSI_ON;
-  RCC_OscInitStruct.HSI48State = RCC_HSI48_ON;
   RCC_OscInitStruct.HSI14State = RCC_HSI14_ON;
   RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
   RCC_OscInitStruct.HSI14CalibrationValue = 16;
@@ -141,11 +184,11 @@ void SystemClock_Config(void)
   */
   RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
                               |RCC_CLOCKTYPE_PCLK1;
-  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_HSI48;
+  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_HSE;
   RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
   RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
 
-  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_1) != HAL_OK)
+  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_0) != HAL_OK)
   {
     Error_Handler();
   }
@@ -244,14 +287,13 @@ static void MX_CAN_Init(void)
 {
 
   /* USER CODE BEGIN CAN_Init 0 */
-
   /* USER CODE END CAN_Init 0 */
 
   /* USER CODE BEGIN CAN_Init 1 */
 
   /* USER CODE END CAN_Init 1 */
   hcan.Instance = CAN;
-  hcan.Init.Prescaler = 3;
+  hcan.Init.Prescaler = 1;
   hcan.Init.Mode = CAN_MODE_NORMAL;
   hcan.Init.SyncJumpWidth = CAN_SJW_1TQ;
   hcan.Init.TimeSeg1 = CAN_BS1_13TQ;
