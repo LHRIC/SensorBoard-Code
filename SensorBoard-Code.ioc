@@ -34,7 +34,6 @@ Mcu.UserConstants=
 Mcu.UserName=STM32F042K4Tx
 MxCube.Version=6.10.0
 MxDb.Version=DB.6.0.100
-NVIC.CEC_CAN_IRQn=true\:0\:0\:false\:false\:true\:true\:true\:true
 NVIC.ForceEnableDMAVector=true
 NVIC.HardFault_IRQn=true\:0\:0\:false\:false\:true\:false\:false\:false
 NVIC.NonMaskableInt_IRQn=true\:0\:0\:false\:false\:true\:false\:false\:false
