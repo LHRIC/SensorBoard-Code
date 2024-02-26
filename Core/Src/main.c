@@ -21,7 +21,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include <stdbool.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -31,7 +31,25 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+#define NUM_ADC_CHANNELS 4
+#define AVG_PER_CHANNEL 4
 
+/*
+ * Time Period for Interrupt:
+ * - this htim16 runs at a 16mhz clock, and is currently set to be divided down by 1600
+ * - that means the timer runs on a 10khz clock, and hits a timer interrupt after TIME_PERIOD - 1 ticks
+ * - the TIME_PERIOD defines the frequency of CAN packet sends
+ * - ex. TIME_PERIOD of 10000 means 1   interrupt/second
+ * 		 TIME_PERIOD of 1000  means 10  interrupts/second
+ * 		 TIME_PERIOD of 100   means 100 interrupts/second
+ *
+ * Use the correct time period for the sensors on the board (typically the fastest sensor)
+ * Also note if the ioc changes the TIME_PERIOD will disappear so pls add this line back
+ *
+ * htim16.Init.Period = TIME_PERIOD - 1;
+ *
+ */
+#define TIME_PERIOD 1000
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -40,32 +58,110 @@
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
+ADC_HandleTypeDef hadc;
+DMA_HandleTypeDef hdma_adc;
+
 CAN_HandleTypeDef hcan;
 
+TIM_HandleTypeDef htim16;
+
 /* USER CODE BEGIN PV */
-CAN_RxHeaderTypeDef   RxHeader;
-uint8_t				  RxData[8];
 CAN_TxHeaderTypeDef   TxHeader;
 uint8_t               TxData[8];
 uint32_t              TxMailbox;
+uint16_t			  ADC_DMA_BUFF[NUM_ADC_CHANNELS * AVG_PER_CHANNEL] = {0};
+uint16_t 			  timer_val;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
+static void MX_DMA_Init(void);
 static void MX_CAN_Init(void);
+static void MX_ADC_Init(void);
+static void MX_TIM16_Init(void);
 /* USER CODE BEGIN PFP */
-
+uint16_t ADC_DMA_AVG(uint16_t ADC_Pin);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
-void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan) {
-	if (HAL_CAN_GetRxMessage(hcan, CAN_RX_FIFO0, &RxHeader, RxData) != HAL_OK) {
-		Error_Handler();
+/*
+ * @brief Averages an ADC channel over the DMA buffer, achieves better resolution
+ * @param ADC_PIN - ADC channel pin
+ * @retval uint16_t - averaged ADC DMA value on success, -1 if invalid pin
+ */
+uint16_t ADC_DMA_AVG(uint16_t ADC_Pin) {
+	int channel;
+	int i;
+	uint32_t adc_sum;
+
+	switch (ADC_Pin) {
+		case S1_Pin:
+			channel = 0;
+			break;
+		case S2_Pin:
+			channel = 1;
+		case S3_Pin:
+			channel = 2;
+		case S4_Pin:
+			channel = 3;
+		default:
+			channel = -1;
 	}
 
+	if (channel == -1) {
+		return -1;
+	}
+
+	adc_sum = 0;
+	for (i = 0; i < AVG_PER_CHANNEL; i++) {
+		adc_sum += ADC_DMA_BUFF[channel + (i * NUM_ADC_CHANNELS)];
+	}
+
+	return adc_sum / AVG_PER_CHANNEL;
+}
+
+/*
+ * @brief Packages ADC values into CAN packet
+ * @param ADC_PIN - ADC channel pin
+ * @retval bool - true on success
+ */
+bool ADC_CAN_Package(uint16_t ADC_Pin) {
+	uint16_t *value;
+	switch (ADC_Pin) {
+		case S1_Pin:
+			value = (uint16_t *)&TxData[0];
+			break;
+		case S2_Pin:
+			value = (uint16_t *)&TxData[2];
+		case S3_Pin:
+			value = (uint16_t *)&TxData[4];
+		case S4_Pin:
+			value = (uint16_t *)&TxData[6];
+		default:
+			value = NULL;
+	}
+
+	if (!value) {
+		return 0;
+	}
+
+	*value = ADC_DMA_AVG(ADC_Pin);
+	return 1;
+}
+
+// Callback: timer has rolled over
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
+{
+  // Check which version of the timer triggered this callback and send CAN packet
+  if (htim == &htim16)
+  {
+	if (!ADC_CAN_Package(S1_Pin) || HAL_CAN_AddTxMessage(&hcan, &TxHeader, TxData, &TxMailbox) != HAL_OK) {
+		Error_Handler();
+	}
+  }
 }
 /* USER CODE END 0 */
 
@@ -96,16 +192,19 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
+  MX_DMA_Init();
   MX_CAN_Init();
+  MX_ADC_Init();
+  MX_TIM16_Init();
   /* USER CODE BEGIN 2 */
+  if (HAL_ADC_Start_DMA(&hadc, (uint32_t *)ADC_DMA_BUFF, NUM_ADC_CHANNELS * AVG_PER_CHANNEL) != HAL_OK) {
+	  Error_Handler();
+  }
 
+  if (HAL_TIM_Base_Start_IT(&htim16) != HAL_OK) {
+	  Error_Handler();
+  }
 
-	if (HAL_CAN_AddTxMessage(&hcan, &TxHeader, TxData, &TxMailbox) != HAL_OK)
-	{
-		Error_Handler ();
-	}
-
-  int what = 0;
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -116,13 +215,6 @@ int main(void)
 
     /* USER CODE BEGIN 3 */
 
-
-	if (HAL_CAN_AddTxMessage(&hcan, &TxHeader, TxData, &TxMailbox) != HAL_OK)
-	{
-	   Error_Handler ();
-	}
-
-	HAL_Delay(1000);
   }
   /* USER CODE END 3 */
 }
@@ -159,6 +251,84 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
+}
+
+/**
+  * @brief ADC Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_ADC_Init(void)
+{
+
+  /* USER CODE BEGIN ADC_Init 0 */
+
+  /* USER CODE END ADC_Init 0 */
+
+  ADC_ChannelConfTypeDef sConfig = {0};
+
+  /* USER CODE BEGIN ADC_Init 1 */
+
+  /* USER CODE END ADC_Init 1 */
+
+  /** Configure the global features of the ADC (Clock, Resolution, Data Alignment and number of conversion)
+  */
+  hadc.Instance = ADC1;
+  hadc.Init.ClockPrescaler = ADC_CLOCK_SYNC_PCLK_DIV4;
+  hadc.Init.Resolution = ADC_RESOLUTION_12B;
+  hadc.Init.DataAlign = ADC_DATAALIGN_RIGHT;
+  hadc.Init.ScanConvMode = ADC_SCAN_DIRECTION_FORWARD;
+  hadc.Init.EOCSelection = ADC_EOC_SINGLE_CONV;
+  hadc.Init.LowPowerAutoWait = DISABLE;
+  hadc.Init.LowPowerAutoPowerOff = DISABLE;
+  hadc.Init.ContinuousConvMode = ENABLE;
+  hadc.Init.DiscontinuousConvMode = DISABLE;
+  hadc.Init.ExternalTrigConv = ADC_SOFTWARE_START;
+  hadc.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_NONE;
+  hadc.Init.DMAContinuousRequests = ENABLE;
+  hadc.Init.Overrun = ADC_OVR_DATA_PRESERVED;
+  if (HAL_ADC_Init(&hadc) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /** Configure for the selected ADC regular channel to be converted.
+  */
+  sConfig.Channel = ADC_CHANNEL_6;
+  sConfig.Rank = ADC_RANK_CHANNEL_NUMBER;
+  sConfig.SamplingTime = ADC_SAMPLETIME_1CYCLE_5;
+  if (HAL_ADC_ConfigChannel(&hadc, &sConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /** Configure for the selected ADC regular channel to be converted.
+  */
+  sConfig.Channel = ADC_CHANNEL_7;
+  if (HAL_ADC_ConfigChannel(&hadc, &sConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /** Configure for the selected ADC regular channel to be converted.
+  */
+  sConfig.Channel = ADC_CHANNEL_8;
+  if (HAL_ADC_ConfigChannel(&hadc, &sConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /** Configure for the selected ADC regular channel to be converted.
+  */
+  sConfig.Channel = ADC_CHANNEL_9;
+  if (HAL_ADC_ConfigChannel(&hadc, &sConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN ADC_Init 2 */
+
+  /* USER CODE END ADC_Init 2 */
+
 }
 
 /**
@@ -221,12 +391,65 @@ static void MX_CAN_Init(void)
   TxHeader.ExtId = 0;
   TxHeader.RTR = CAN_RTR_DATA;
   TxHeader.IDE = CAN_ID_STD;
-  TxHeader.DLC = 3;
+  TxHeader.DLC = 2;
   TxHeader.TransmitGlobalTime = DISABLE;
-	TxData[0] = 'w';
-	TxData[1] = 't';
-	TxData[2] = 'f';
   /* USER CODE END CAN_Init 2 */
+
+}
+
+/**
+  * @brief TIM16 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM16_Init(void)
+{
+
+  /* USER CODE BEGIN TIM16_Init 0 */
+
+  /* USER CODE END TIM16_Init 0 */
+
+  /* USER CODE BEGIN TIM16_Init 1 */
+
+  /* USER CODE END TIM16_Init 1 */
+  htim16.Instance = TIM16;
+  htim16.Init.Prescaler = 1600;
+  htim16.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim16.Init.Period = 10000 - 1;
+  htim16.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim16.Init.RepetitionCounter = 0;
+  htim16.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim16) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM16_Init 2 */
+
+  // Setting period manually and re-initing so I don't have to update every ioc change
+  htim16.Init.Period = TIME_PERIOD - 1;
+  if (HAL_TIM_Base_Init(&htim16) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+
+  /* USER CODE END TIM16_Init 2 */
+
+}
+
+/**
+  * Enable DMA controller clock
+  */
+static void MX_DMA_Init(void)
+{
+
+  /* DMA controller clock enable */
+  __HAL_RCC_DMA1_CLK_ENABLE();
+
+  /* DMA interrupt init */
+  /* DMA1_Channel1_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Channel1_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Channel1_IRQn);
 
 }
 
