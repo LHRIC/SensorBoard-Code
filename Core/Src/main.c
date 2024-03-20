@@ -1,20 +1,20 @@
 /* USER CODE BEGIN Header */
 /**
-  ******************************************************************************
-  * @file           : main.c
-  * @brief          : Main program body
-  ******************************************************************************
-  * @attention
-  *
-  * Copyright (c) 2024 STMicroelectronics.
-  * All rights reserved.
-  *
-  * This software is licensed under terms that can be found in the LICENSE file
-  * in the root directory of this software component.
-  * If no LICENSE file comes with this software, it is provided AS-IS.
-  *
-  ******************************************************************************
-  */
+ ******************************************************************************
+ * @file           : main.c
+ * @brief          : Main program body
+ ******************************************************************************
+ * @attention
+ *
+ * Copyright (c) 2024 STMicroelectronics.
+ * All rights reserved.
+ *
+ * This software is licensed under terms that can be found in the LICENSE file
+ * in the root directory of this software component.
+ * If no LICENSE file comes with this software, it is provided AS-IS.
+ *
+ ******************************************************************************
+ */
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
@@ -66,11 +66,10 @@ CAN_HandleTypeDef hcan;
 TIM_HandleTypeDef htim16;
 
 /* USER CODE BEGIN PV */
-CAN_TxHeaderTypeDef   TxHeader;
-uint8_t               TxData[8];
-uint32_t              TxMailbox;
-uint16_t			  ADC_DMA_BUFF[NUM_ADC_CHANNELS * AVG_PER_CHANNEL] = {0};
-uint16_t 			  timer_val;
+CAN_TxHeaderTypeDef TxHeader;
+uint8_t TxData[8] = {0};
+uint32_t TxMailbox;
+uint16_t ADC_DMA_BUFF[NUM_ADC_CHANNELS * AVG_PER_CHANNEL] = {0};
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -92,35 +91,39 @@ uint16_t ADC_DMA_AVG(uint16_t ADC_Pin);
  * @param ADC_PIN - ADC channel pin
  * @retval uint16_t - averaged ADC DMA value on success, -1 if invalid pin
  */
-uint16_t ADC_DMA_AVG(uint16_t ADC_Pin) {
-	int channel;
-	int i;
-	uint32_t adc_sum;
+uint16_t ADC_DMA_AVG(uint16_t ADC_Pin)
+{
+  int channel;
+  int i;
+  uint32_t adc_sum;
 
-	switch (ADC_Pin) {
-		case S1_Pin:
-			channel = 0;
-			break;
-		case S2_Pin:
-			channel = 1;
-		case S3_Pin:
-			channel = 2;
-		case S4_Pin:
-			channel = 3;
-		default:
-			channel = -1;
-	}
+  switch (ADC_Pin)
+  {
+  case S1_Pin:
+    channel = 0;
+    break;
+  case S2_Pin:
+    channel = 1;
+  case S3_Pin:
+    channel = 2;
+  case S4_Pin:
+    channel = 3;
+  default:
+    channel = -1;
+  }
 
-	if (channel == -1) {
-		return -1;
-	}
+  if (channel == -1)
+  {
+    return -1;
+  }
 
-	adc_sum = 0;
-	for (i = 0; i < AVG_PER_CHANNEL; i++) {
-		adc_sum += ADC_DMA_BUFF[channel + (i * NUM_ADC_CHANNELS)];
-	}
+  adc_sum = 0;
+  for (i = 0; i < AVG_PER_CHANNEL; i++)
+  {
+    adc_sum += ADC_DMA_BUFF[channel + (i * NUM_ADC_CHANNELS)];
+  }
 
-	return adc_sum / AVG_PER_CHANNEL;
+  return adc_sum / AVG_PER_CHANNEL;
 }
 
 /*
@@ -128,28 +131,31 @@ uint16_t ADC_DMA_AVG(uint16_t ADC_Pin) {
  * @param ADC_PIN - ADC channel pin
  * @retval bool - true on success
  */
-bool ADC_CAN_Package(uint16_t ADC_Pin) {
-	uint16_t *value;
-	switch (ADC_Pin) {
-		case S1_Pin:
-			value = (uint16_t *)&TxData[0];
-			break;
-		case S2_Pin:
-			value = (uint16_t *)&TxData[2];
-		case S3_Pin:
-			value = (uint16_t *)&TxData[4];
-		case S4_Pin:
-			value = (uint16_t *)&TxData[6];
-		default:
-			value = NULL;
-	}
+bool ADC_CAN_Package(uint16_t ADC_Pin)
+{
+  uint16_t *value;
+  switch (ADC_Pin)
+  {
+  case S1_Pin:
+    value = (uint16_t *)&TxData[0];
+    break;
+  case S2_Pin:
+    value = (uint16_t *)&TxData[2];
+  case S3_Pin:
+    value = (uint16_t *)&TxData[4];
+  case S4_Pin:
+    value = (uint16_t *)&TxData[6];
+  default:
+    value = NULL;
+  }
 
-	if (!value) {
-		return 0;
-	}
+  if (!value)
+  {
+    return 0;
+  }
 
-	*value = ADC_DMA_AVG(ADC_Pin);
-	return 1;
+  *value = ADC_DMA_AVG(ADC_Pin);
+  return 1;
 }
 
 // Callback: timer has rolled over
@@ -158,9 +164,10 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
   // Check which version of the timer triggered this callback and send CAN packet
   if (htim == &htim16)
   {
-	if (!ADC_CAN_Package(S1_Pin) || HAL_CAN_AddTxMessage(&hcan, &TxHeader, TxData, &TxMailbox) != HAL_OK) {
-		Error_Handler();
-	}
+    if (!ADC_CAN_Package(S1_Pin) || HAL_CAN_AddTxMessage(&hcan, &TxHeader, TxData, &TxMailbox) != HAL_OK)
+    {
+      Error_Handler();
+    }
   }
 }
 /* USER CODE END 0 */
@@ -172,6 +179,12 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 int main(void)
 {
   /* USER CODE BEGIN 1 */
+  TxHeader.StdId = 0x321;
+  TxHeader.ExtId = 0;
+  TxHeader.RTR = CAN_RTR_DATA;
+  TxHeader.IDE = CAN_ID_STD;
+  TxHeader.DLC = 8;
+  TxHeader.TransmitGlobalTime = DISABLE;
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -197,12 +210,14 @@ int main(void)
   MX_ADC_Init();
   MX_TIM16_Init();
   /* USER CODE BEGIN 2 */
-  if (HAL_ADC_Start_DMA(&hadc, (uint32_t *)ADC_DMA_BUFF, NUM_ADC_CHANNELS * AVG_PER_CHANNEL) != HAL_OK) {
-	  Error_Handler();
+  if (HAL_ADC_Start_DMA(&hadc, (uint32_t *)ADC_DMA_BUFF, NUM_ADC_CHANNELS * AVG_PER_CHANNEL) != HAL_OK)
+  {
+    Error_Handler();
   }
 
-  if (HAL_TIM_Base_Start_IT(&htim16) != HAL_OK) {
-	  Error_Handler();
+  if (HAL_TIM_Base_Start_IT(&htim16) != HAL_OK)
+  {
+    Error_Handler();
   }
 
   /* USER CODE END 2 */
@@ -214,7 +229,6 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-
   }
   /* USER CODE END 3 */
 }
@@ -366,33 +380,21 @@ static void MX_CAN_Init(void)
 
   CAN_FilterTypeDef sFilterConfig;
 
-  sFilterConfig.FilterActivation=ENABLE;
-  sFilterConfig.FilterFIFOAssignment=CAN_RX_FIFO0; //set fifo assignment
+  sFilterConfig.FilterActivation = ENABLE;
+  sFilterConfig.FilterFIFOAssignment = CAN_RX_FIFO0; // set fifo assignment
   sFilterConfig.FilterIdHigh = 0;
   sFilterConfig.FilterIdLow = 0;
   sFilterConfig.FilterMaskIdHigh = 0;
   sFilterConfig.FilterMaskIdLow = 0;
-  sFilterConfig.FilterScale=CAN_FILTERSCALE_32BIT; //set filter scale
+  sFilterConfig.FilterScale = CAN_FILTERSCALE_32BIT; // set filter scale
   sFilterConfig.FilterBank = 0;
   sFilterConfig.FilterMode = CAN_FILTERMODE_IDMASK;
   HAL_CAN_ConfigFilter(&hcan, &sFilterConfig);
 
   if (HAL_CAN_Start(&hcan) != HAL_OK)
   {
-     Error_Handler ();
+    Error_Handler();
   }
-
-  if (HAL_CAN_ActivateNotification(&hcan, CAN_IT_RX_FIFO0_MSG_PENDING) != HAL_OK)
-  {
-      Error_Handler();
-  }
-
-  TxHeader.StdId = 0x321;
-  TxHeader.ExtId = 0;
-  TxHeader.RTR = CAN_RTR_DATA;
-  TxHeader.IDE = CAN_ID_STD;
-  TxHeader.DLC = 2;
-  TxHeader.TransmitGlobalTime = DISABLE;
   /* USER CODE END CAN_Init 2 */
 
 }
@@ -431,7 +433,6 @@ static void MX_TIM16_Init(void)
   {
     Error_Handler();
   }
-
 
   /* USER CODE END TIM16_Init 2 */
 
@@ -495,7 +496,7 @@ void Error_Handler(void)
 {
   /* USER CODE BEGIN Error_Handler_Debug */
   /* User can add his own implementation to report the HAL error return state */
-   __disable_irq();
+  __disable_irq();
   while (1)
   {
   }
