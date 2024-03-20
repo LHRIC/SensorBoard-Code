@@ -22,6 +22,10 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include <stdbool.h>
+#include "bno08x.h"
+#include "sh2.h"
+#include "sh2_err.h"
+#include "sh2_SensorValue.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -63,6 +67,9 @@ DMA_HandleTypeDef hdma_adc;
 
 CAN_HandleTypeDef hcan;
 
+I2C_HandleTypeDef hi2c1;
+DMA_HandleTypeDef hdma_i2c1_rx;
+
 TIM_HandleTypeDef htim16;
 
 /* USER CODE BEGIN PV */
@@ -79,6 +86,7 @@ static void MX_DMA_Init(void);
 static void MX_CAN_Init(void);
 static void MX_ADC_Init(void);
 static void MX_TIM16_Init(void);
+static void MX_I2C1_Init(void);
 /* USER CODE BEGIN PFP */
 uint16_t ADC_DMA_AVG(uint16_t ADC_Pin);
 /* USER CODE END PFP */
@@ -164,11 +172,57 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
   // Check which version of the timer triggered this callback and send CAN packet
   if (htim == &htim16)
   {
-    if (!ADC_CAN_Package(S1_Pin) || HAL_CAN_AddTxMessage(&hcan, &TxHeader, TxData, &TxMailbox) != HAL_OK)
-    {
-      Error_Handler();
-    }
+    // if (!ADC_CAN_Package(S1_Pin) || HAL_CAN_AddTxMessage(&hcan, &TxHeader, TxData, &TxMailbox) != HAL_OK)
+    // {
+    //   Error_Handler();
+    // }
   }
+}
+
+// Callback: Sensor Hub has data to read
+void sensorCallback(void *cookie, sh2_SensorEvent_t *event)
+{
+  int rc;
+  sh2_SensorValue_t value;
+  // float x, y, z;
+  // float t;
+  uint16_t x, y, z;
+  uint16_t t;
+  static int skip = 0;
+
+  rc = sh2_decodeSensorEvent(&value, event);
+  if (rc != SH2_OK) {
+      return;
+  }
+
+  t = value.timestamp / 1000000.0;
+
+  // package and send data over can
+  switch (value.sensorId) {
+    case SH2_RAW_ACCELEROMETER:
+      x = value.un.rawAccelerometer.x;
+      y = value.un.rawAccelerometer.y;
+      z = value.un.rawAccelerometer.z;
+
+      TxData[0] = (uint8_t)x >> 8;
+      TxData[1] = (uint8_t)x;
+      TxData[2] = (uint8_t)y >> 8;
+      TxData[3] = (uint8_t)y;
+      TxData[4] = (uint8_t)z >> 8;
+      TxData[5] = (uint8_t)z;
+      TxData[6] = (uint8_t)t >> 8;
+      TxData[7] = (uint8_t)t;
+
+      if (skip++ % 100 == 0) {
+        if (HAL_CAN_AddTxMessage(&hcan, &TxHeader, TxData, &TxMailbox) != HAL_OK)
+        {
+          Error_Handler();
+        }
+      }
+
+      break;
+  }
+
 }
 /* USER CODE END 0 */
 
@@ -209,6 +263,7 @@ int main(void)
   MX_CAN_Init();
   MX_ADC_Init();
   MX_TIM16_Init();
+  MX_I2C1_Init();
   /* USER CODE BEGIN 2 */
   if (HAL_ADC_Start_DMA(&hadc, (uint32_t *)ADC_DMA_BUFF, NUM_ADC_CHANNELS * AVG_PER_CHANNEL) != HAL_OK)
   {
@@ -219,6 +274,8 @@ int main(void)
   {
     Error_Handler();
   }
+
+  init_bno08x(&sensorCallback);
 
   /* USER CODE END 2 */
 
@@ -241,12 +298,15 @@ void SystemClock_Config(void)
 {
   RCC_OscInitTypeDef RCC_OscInitStruct = {0};
   RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
+  RCC_PeriphCLKInitTypeDef PeriphClkInit = {0};
 
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
   */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE;
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI|RCC_OSCILLATORTYPE_HSE;
   RCC_OscInitStruct.HSEState = RCC_HSE_ON;
+  RCC_OscInitStruct.HSIState = RCC_HSI_ON;
+  RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_NONE;
   if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
   {
@@ -262,6 +322,12 @@ void SystemClock_Config(void)
   RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
 
   if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_0) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_I2C1;
+  PeriphClkInit.I2c1ClockSelection = RCC_I2C1CLKSOURCE_HSI;
+  if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK)
   {
     Error_Handler();
   }
@@ -400,6 +466,54 @@ static void MX_CAN_Init(void)
 }
 
 /**
+  * @brief I2C1 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_I2C1_Init(void)
+{
+
+  /* USER CODE BEGIN I2C1_Init 0 */
+
+  /* USER CODE END I2C1_Init 0 */
+
+  /* USER CODE BEGIN I2C1_Init 1 */
+
+  /* USER CODE END I2C1_Init 1 */
+  hi2c1.Instance = I2C1;
+  hi2c1.Init.Timing = 0x2000090E;
+  hi2c1.Init.OwnAddress1 = 0;
+  hi2c1.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
+  hi2c1.Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;
+  hi2c1.Init.OwnAddress2 = 0;
+  hi2c1.Init.OwnAddress2Masks = I2C_OA2_NOMASK;
+  hi2c1.Init.GeneralCallMode = I2C_GENERALCALL_DISABLE;
+  hi2c1.Init.NoStretchMode = I2C_NOSTRETCH_DISABLE;
+  if (HAL_I2C_Init(&hi2c1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /** Configure Analogue filter
+  */
+  if (HAL_I2CEx_ConfigAnalogFilter(&hi2c1, I2C_ANALOGFILTER_ENABLE) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /** Configure Digital filter
+  */
+  if (HAL_I2CEx_ConfigDigitalFilter(&hi2c1, 0) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN I2C1_Init 2 */
+
+  /* USER CODE END I2C1_Init 2 */
+
+}
+
+/**
   * @brief TIM16 Initialization Function
   * @param None
   * @retval None
@@ -451,6 +565,9 @@ static void MX_DMA_Init(void)
   /* DMA1_Channel1_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(DMA1_Channel1_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(DMA1_Channel1_IRQn);
+  /* DMA1_Channel2_3_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Channel2_3_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Channel2_3_IRQn);
 
 }
 
@@ -461,7 +578,6 @@ static void MX_DMA_Init(void)
   */
 static void MX_GPIO_Init(void)
 {
-  GPIO_InitTypeDef GPIO_InitStruct = {0};
 /* USER CODE BEGIN MX_GPIO_Init_1 */
 /* USER CODE END MX_GPIO_Init_1 */
 
@@ -469,16 +585,6 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOF_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
   __HAL_RCC_GPIOB_CLK_ENABLE();
-
-  /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(CAN_SLEEP_GPIO_Port, CAN_SLEEP_Pin, GPIO_PIN_RESET);
-
-  /*Configure GPIO pin : CAN_SLEEP_Pin */
-  GPIO_InitStruct.Pin = CAN_SLEEP_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_PULLDOWN;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(CAN_SLEEP_GPIO_Port, &GPIO_InitStruct);
 
 /* USER CODE BEGIN MX_GPIO_Init_2 */
 /* USER CODE END MX_GPIO_Init_2 */

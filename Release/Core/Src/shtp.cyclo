@@ -1,0 +1,13 @@
+../Core/Src/shtp.c:405:13:callAdvertHandler	4
+../Core/Src/shtp.c:200:13:updateCallbacks	7
+../Core/Src/shtp.c:347:13:addApp	4
+../Core/Src/shtp.c:331:13:shtpAdvertHdlr	3
+../Core/Src/shtp.c:526:13:shtpCmdListener	20
+../Core/Src/shtp.c:698:6:shtp_close	1
+../Core/Src/shtp.c:710:6:shtp_setEventCallback	1
+../Core/Src/shtp.c:720:5:shtp_listenChan	4
+../Core/Src/shtp.c:733:5:shtp_listenAdvert	3
+../Core/Src/shtp.c:644:7:shtp_open	4
+../Core/Src/shtp.c:751:9:shtp_chanNo	7
+../Core/Src/shtp.c:801:6:shtp_service	19
+../Core/Src/shtp.c:781:5:shtp_send	8

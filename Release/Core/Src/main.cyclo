@@ -1,0 +1,8 @@
+../Core/Src/main.c:183:6:sensorCallback	5
+../Core/Src/main.c:102:10:ADC_DMA_AVG.part.0	1
+../Core/Src/main.c:102:10:ADC_DMA_AVG	2
+../Core/Src/main.c:142:6:ADC_CAN_Package	2
+../Core/Src/main.c:170:6:HAL_TIM_PeriodElapsedCallback	1
+../Core/Src/main.c:297:6:SystemClock_Config	4
+../Core/Src/main.c:233:5:main	15
+../Core/Src/main.c:601:6:Error_Handler	1

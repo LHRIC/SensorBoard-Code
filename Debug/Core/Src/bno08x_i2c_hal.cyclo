@@ -1,0 +1,2 @@
+../Core/Src/bno08x_i2c_hal.c:32:12:sh2_hal_init	1
+../Core/Src/bno08x_i2c_hal.c:38:12:dfu_hal_init	1
