@@ -1,18 +1,12 @@
 ################################################################################
 # Automatically-generated file. Do not edit!
-# Toolchain: GNU Tools for STM32 (11.3.rel1)
+# Toolchain: GNU Tools for STM32 (12.3.rel1)
 ################################################################################
 
 # Add inputs and outputs from these tool invocations to the build variables 
 C_SRCS += \
-../Core/Src/bno08x.c \
-../Core/Src/bno08x_i2c_hal.c \
-../Core/Src/i2c_hal.c \
+../Core/Src/BNO085.c \
 ../Core/Src/main.c \
-../Core/Src/sh2.c \
-../Core/Src/sh2_SensorValue.c \
-../Core/Src/sh2_util.c \
-../Core/Src/shtp.c \
 ../Core/Src/stm32f0xx_hal_msp.c \
 ../Core/Src/stm32f0xx_it.c \
 ../Core/Src/syscalls.c \
@@ -20,14 +14,8 @@ C_SRCS += \
 ../Core/Src/system_stm32f0xx.c 
 
 OBJS += \
-./Core/Src/bno08x.o \
-./Core/Src/bno08x_i2c_hal.o \
-./Core/Src/i2c_hal.o \
+./Core/Src/BNO085.o \
 ./Core/Src/main.o \
-./Core/Src/sh2.o \
-./Core/Src/sh2_SensorValue.o \
-./Core/Src/sh2_util.o \
-./Core/Src/shtp.o \
 ./Core/Src/stm32f0xx_hal_msp.o \
 ./Core/Src/stm32f0xx_it.o \
 ./Core/Src/syscalls.o \
@@ -35,14 +23,8 @@ OBJS += \
 ./Core/Src/system_stm32f0xx.o 
 
 C_DEPS += \
-./Core/Src/bno08x.d \
-./Core/Src/bno08x_i2c_hal.d \
-./Core/Src/i2c_hal.d \
+./Core/Src/BNO085.d \
 ./Core/Src/main.d \
-./Core/Src/sh2.d \
-./Core/Src/sh2_SensorValue.d \
-./Core/Src/sh2_util.d \
-./Core/Src/shtp.d \
 ./Core/Src/stm32f0xx_hal_msp.d \
 ./Core/Src/stm32f0xx_it.d \
 ./Core/Src/syscalls.d \
@@ -57,7 +39,7 @@ Core/Src/%.o Core/Src/%.su Core/Src/%.cyclo: ../Core/Src/%.c Core/Src/subdir.mk
 clean: clean-Core-2f-Src
 
 clean-Core-2f-Src:
-	-$(RM) ./Core/Src/bno08x.cyclo ./Core/Src/bno08x.d ./Core/Src/bno08x.o ./Core/Src/bno08x.su ./Core/Src/bno08x_i2c_hal.cyclo ./Core/Src/bno08x_i2c_hal.d ./Core/Src/bno08x_i2c_hal.o ./Core/Src/bno08x_i2c_hal.su ./Core/Src/i2c_hal.cyclo ./Core/Src/i2c_hal.d ./Core/Src/i2c_hal.o ./Core/Src/i2c_hal.su ./Core/Src/main.cyclo ./Core/Src/main.d ./Core/Src/main.o ./Core/Src/main.su ./Core/Src/sh2.cyclo ./Core/Src/sh2.d ./Core/Src/sh2.o ./Core/Src/sh2.su ./Core/Src/sh2_SensorValue.cyclo ./Core/Src/sh2_SensorValue.d ./Core/Src/sh2_SensorValue.o ./Core/Src/sh2_SensorValue.su ./Core/Src/sh2_util.cyclo ./Core/Src/sh2_util.d ./Core/Src/sh2_util.o ./Core/Src/sh2_util.su ./Core/Src/shtp.cyclo ./Core/Src/shtp.d ./Core/Src/shtp.o ./Core/Src/shtp.su ./Core/Src/stm32f0xx_hal_msp.cyclo ./Core/Src/stm32f0xx_hal_msp.d ./Core/Src/stm32f0xx_hal_msp.o ./Core/Src/stm32f0xx_hal_msp.su ./Core/Src/stm32f0xx_it.cyclo ./Core/Src/stm32f0xx_it.d ./Core/Src/stm32f0xx_it.o ./Core/Src/stm32f0xx_it.su ./Core/Src/syscalls.cyclo ./Core/Src/syscalls.d ./Core/Src/syscalls.o ./Core/Src/syscalls.su ./Core/Src/sysmem.cyclo ./Core/Src/sysmem.d ./Core/Src/sysmem.o ./Core/Src/sysmem.su ./Core/Src/system_stm32f0xx.cyclo ./Core/Src/system_stm32f0xx.d ./Core/Src/system_stm32f0xx.o ./Core/Src/system_stm32f0xx.su
+	-$(RM) ./Core/Src/BNO085.cyclo ./Core/Src/BNO085.d ./Core/Src/BNO085.o ./Core/Src/BNO085.su ./Core/Src/main.cyclo ./Core/Src/main.d ./Core/Src/main.o ./Core/Src/main.su ./Core/Src/stm32f0xx_hal_msp.cyclo ./Core/Src/stm32f0xx_hal_msp.d ./Core/Src/stm32f0xx_hal_msp.o ./Core/Src/stm32f0xx_hal_msp.su ./Core/Src/stm32f0xx_it.cyclo ./Core/Src/stm32f0xx_it.d ./Core/Src/stm32f0xx_it.o ./Core/Src/stm32f0xx_it.su ./Core/Src/syscalls.cyclo ./Core/Src/syscalls.d ./Core/Src/syscalls.o ./Core/Src/syscalls.su ./Core/Src/sysmem.cyclo ./Core/Src/sysmem.d ./Core/Src/sysmem.o ./Core/Src/sysmem.su ./Core/Src/system_stm32f0xx.cyclo ./Core/Src/system_stm32f0xx.d ./Core/Src/system_stm32f0xx.o ./Core/Src/system_stm32f0xx.su
 
 .PHONY: clean-Core-2f-Src
 

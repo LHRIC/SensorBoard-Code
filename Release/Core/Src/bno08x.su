@@ -1,3 +1,0 @@
-../Core/Src/bno08x.c:24:13:eventHandler	0	static
-../Core/Src/bno08x.c:51:6:init_bno08x	8	static
-../Core/Src/bno08x.c:68:6:service_bno08x	8	static

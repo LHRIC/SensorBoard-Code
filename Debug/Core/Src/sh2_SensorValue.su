@@ -1,2 +1,0 @@
-../Core/Src/sh2_SensorValue.c:53:5:sh2_decodeSensorEvent	24	static
-../Core/Src/sh2_SensorValue.c:136:12:decodeRawAccelerometer	16	static

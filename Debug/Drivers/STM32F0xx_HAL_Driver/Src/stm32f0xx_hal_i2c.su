@@ -2,6 +2,10 @@
 ../Drivers/STM32F0xx_HAL_Driver/Src/stm32f0xx_hal_i2c.c:645:19:HAL_I2C_DeInit	16	static
 ../Drivers/STM32F0xx_HAL_Driver/Src/stm32f0xx_hal_i2c.c:691:13:HAL_I2C_MspInit	16	static
 ../Drivers/STM32F0xx_HAL_Driver/Src/stm32f0xx_hal_i2c.c:707:13:HAL_I2C_MspDeInit	16	static
+../Drivers/STM32F0xx_HAL_Driver/Src/stm32f0xx_hal_i2c.c:741:19:HAL_I2C_RegisterCallback	32	static
+../Drivers/STM32F0xx_HAL_Driver/Src/stm32f0xx_hal_i2c.c:867:19:HAL_I2C_UnRegisterCallback	24	static
+../Drivers/STM32F0xx_HAL_Driver/Src/stm32f0xx_hal_i2c.c:969:19:HAL_I2C_RegisterAddrCallback	24	static
+../Drivers/STM32F0xx_HAL_Driver/Src/stm32f0xx_hal_i2c.c:1004:19:HAL_I2C_UnRegisterAddrCallback	24	static
 ../Drivers/STM32F0xx_HAL_Driver/Src/stm32f0xx_hal_i2c.c:1114:19:HAL_I2C_Master_Transmit	48	static
 ../Drivers/STM32F0xx_HAL_Driver/Src/stm32f0xx_hal_i2c.c:1233:19:HAL_I2C_Master_Receive	48	static
 ../Drivers/STM32F0xx_HAL_Driver/Src/stm32f0xx_hal_i2c.c:1351:19:HAL_I2C_Slave_Transmit	40	static
@@ -74,7 +78,7 @@
 ../Drivers/STM32F0xx_HAL_Driver/Src/stm32f0xx_hal_i2c.c:6767:26:I2C_WaitOnTXISFlagUntilTimeout	24	static
 ../Drivers/STM32F0xx_HAL_Driver/Src/stm32f0xx_hal_i2c.c:6808:26:I2C_WaitOnSTOPFlagUntilTimeout	24	static
 ../Drivers/STM32F0xx_HAL_Driver/Src/stm32f0xx_hal_i2c.c:6846:26:I2C_WaitOnRXNEFlagUntilTimeout	24	static
-../Drivers/STM32F0xx_HAL_Driver/Src/stm32f0xx_hal_i2c.c:6922:26:I2C_IsErrorOccurred	56	static
+../Drivers/STM32F0xx_HAL_Driver/Src/stm32f0xx_hal_i2c.c:6922:26:I2C_IsErrorOccurred	48	static
 ../Drivers/STM32F0xx_HAL_Driver/Src/stm32f0xx_hal_i2c.c:7063:13:I2C_TransferConfig	40	static
 ../Drivers/STM32F0xx_HAL_Driver/Src/stm32f0xx_hal_i2c.c:7090:13:I2C_Enable_IRQ	24	static
 ../Drivers/STM32F0xx_HAL_Driver/Src/stm32f0xx_hal_i2c.c:7181:13:I2C_Disable_IRQ	24	static

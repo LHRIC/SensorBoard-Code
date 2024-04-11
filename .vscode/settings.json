@@ -1,0 +1,12 @@
+{
+  "files.associations": {
+    "string.h": "c",
+    "errno.h": "c",
+    "stdint.h": "c",
+    "bno08x.h": "c",
+    "stdbool.h": "c",
+    "main.h": "c",
+    "stm32f0xx_hal.h": "c",
+    "cstdint": "cpp"
+  }
+}

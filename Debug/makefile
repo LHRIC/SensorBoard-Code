@@ -1,6 +1,6 @@
 ################################################################################
 # Automatically-generated file. Do not edit!
-# Toolchain: GNU Tools for STM32 (11.3.rel1)
+# Toolchain: GNU Tools for STM32 (12.3.rel1)
 ################################################################################
 
 -include ../makefile.init
@@ -60,8 +60,8 @@ all: main-build
 main-build: SensorBoard-Code.elf secondary-outputs
 
 # Tool invocations
-SensorBoard-Code.elf SensorBoard-Code.map: $(OBJS) $(USER_OBJS) /home/sum/Documents/SensorBoard-Code/STM32F042K4TX_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
-	arm-none-eabi-gcc -o "SensorBoard-Code.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m0 -T"/home/sum/Documents/SensorBoard-Code/STM32F042K4TX_FLASH.ld" --specs=nosys.specs -Wl,-Map="SensorBoard-Code.map" -Wl,--gc-sections -static --specs=nano.specs -mfloat-abi=soft -mthumb -Wl,--start-group -lc -lm -Wl,--end-group
+SensorBoard-Code.elf SensorBoard-Code.map: $(OBJS) $(USER_OBJS) /home/sum/STM32CubeIDE/workspace_1.15.0/SensorBoard-Code/STM32F042K6TX_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
+	arm-none-eabi-gcc -o "SensorBoard-Code.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m0 -T"/home/sum/STM32CubeIDE/workspace_1.15.0/SensorBoard-Code/STM32F042K6TX_FLASH.ld" --specs=nosys.specs -Wl,-Map="SensorBoard-Code.map" -Wl,--gc-sections -static --specs=nano.specs -mfloat-abi=soft -mthumb -Wl,--start-group -lc -lm -Wl,--end-group
 	@echo 'Finished building target: $@'
 	@echo ' '
 
