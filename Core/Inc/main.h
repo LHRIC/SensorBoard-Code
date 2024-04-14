@@ -65,6 +65,8 @@ void Error_Handler(void);
 #define S3_GPIO_Port GPIOB
 #define S4_Pin GPIO_PIN_1
 #define S4_GPIO_Port GPIOB
+#define CAN_SLEEP_Pin GPIO_PIN_3
+#define CAN_SLEEP_GPIO_Port GPIOB
 
 /* USER CODE BEGIN Private defines */
 

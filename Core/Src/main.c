@@ -50,7 +50,7 @@
  * htim16.Init.Period = TIME_PERIOD - 1;
  *
  */
-#define TIME_PERIOD 1000  
+#define TIME_PERIOD 1000
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -101,36 +101,29 @@ uint16_t ADC_DMA_AVG(uint16_t ADC_Pin);
 void I2C_Receive_Callback(I2C_HandleTypeDef *hi2c1)
 {
   CAN_TxHeaderTypeDef *TxHeaderToUse = &TxHeader;
-  if (can_interval % 100 == 0)
-  {
-    uint8_t sensor = BNO085_DecodeSensorEvent(TxData, &sensor_event);
-    switch (sensor)
-    {
-    case SH2_ACCELEROMETER:
-      TxHeaderToUse = &TxHeader;
-      break;
-    case SH2_GYROSCOPE_CALIBRATED:
-      TxHeaderToUse = &TxHeader;
-      break;
-    case SH2_MAGNETIC_FIELD_CALIBRATED:
-      TxHeaderToUse = &TxHeader;
-      break;
-    case SH2_ROTATION_VECTOR:
-      TxHeaderToUse = &TxHeaderRotation;
-      break;
-    default:
-      break;
-    }
+  uint8_t sensor = BNO085_DecodeSensorEvent(TxData, &sensor_event);
+      switch (sensor)
+      {
+      case SH2_ACCELEROMETER:
+        TxHeaderToUse = &TxHeader;
+        break;
+      case SH2_GYROSCOPE_CALIBRATED:
+        TxHeaderToUse = &TxHeader;
+        break;
+      case SH2_MAGNETIC_FIELD_CALIBRATED:
+        TxHeaderToUse = &TxHeader;
+        break;
+      case SH2_ROTATION_VECTOR:
+        TxHeaderToUse = &TxHeaderRotation;
+        break;
+      default:
+        break;
+      }
 
-    HAL_CAN_AddTxMessage(&hcan, TxHeaderToUse, TxData, &TxMailbox);
-
-    // Print Raw Report
-//        for (int i = 0; i < sizeof(sensor_event); i++)
-//        {
-//          printf("%d: 0x%x\n", i, ((uint8_t *)&sensor_event)[i]);
-//        }
-  }
-  can_interval++;
+      if (HAL_CAN_AddTxMessage(&hcan, TxHeaderToUse, TxData, &TxMailbox) != HAL_OK)
+      {
+        Error_Handler();
+      }
 }
 
 /*
@@ -151,10 +144,13 @@ uint16_t ADC_DMA_AVG(uint16_t ADC_Pin)
     break;
   case S2_Pin:
     channel = 1;
+    break;
   case S3_Pin:
     channel = 2;
+    break;
   case S4_Pin:
     channel = 3;
+    break;
   default:
     channel = -1;
   }
@@ -188,12 +184,16 @@ bool ADC_CAN_Package(uint16_t ADC_Pin)
     break;
   case S2_Pin:
     value = (uint16_t *)&TxData[2];
+    break;
   case S3_Pin:
     value = (uint16_t *)&TxData[4];
+    break;
   case S4_Pin:
     value = (uint16_t *)&TxData[6];
+    break;
   default:
     value = NULL;
+    break;
   }
 
   if (!value)
@@ -211,10 +211,10 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
   // Check which version of the timer triggered this callback and send CAN packet
   if (htim == &htim16)
   {
-     if (!ADC_CAN_Package(S1_Pin) || HAL_CAN_AddTxMessage(&hcan, &TxHeader, TxData, &TxMailbox) != HAL_OK)
-     {
-       Error_Handler();
-     }
+    if (!ADC_CAN_Package(S1_Pin) || HAL_CAN_AddTxMessage(&hcan, &TxHeader, TxData, &TxMailbox) != HAL_OK)
+    {
+      Error_Handler();
+    }
   }
 }
 /* USER CODE END 0 */
@@ -256,21 +256,21 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
-  // MX_DMA_Init();
-  // MX_ADC_Init();
+  MX_DMA_Init();
+  MX_ADC_Init();
   MX_CAN_Init();
   MX_I2C1_Init();
-  // MX_TIM16_Init();
+  MX_TIM16_Init();
   /* USER CODE BEGIN 2 */
-  if (HAL_ADC_Start_DMA(&hadc, (uint32_t *)ADC_DMA_BUFF, NUM_ADC_CHANNELS * AVG_PER_CHANNEL) != HAL_OK)
-  {
-    Error_Handler();
-  }
+  // if (HAL_ADC_Start_DMA(&hadc, (uint32_t *)ADC_DMA_BUFF, NUM_ADC_CHANNELS * AVG_PER_CHANNEL) != HAL_OK)
+  // {
+  //   Error_Handler();
+  // }
 
-  if (HAL_TIM_Base_Start_IT(&htim16) != HAL_OK)
-  {
-    Error_Handler();
-  }
+  // if (HAL_TIM_Base_Start_IT(&htim16) != HAL_OK)
+  // {
+  //   Error_Handler();
+  // }
 
   HAL_I2C_RegisterCallback(&hi2c1, HAL_I2C_MASTER_RX_COMPLETE_CB_ID, I2C_Receive_Callback);
 
@@ -288,32 +288,32 @@ int main(void)
   start_accel.feature_report_id = SH2_ACCELEROMETER;
   start_accel.report_interval = 0xEA60; // 60Hz
 
-//  SHTP_Command start_gyro = {0};
-//  start_gyro.header = header;
-//  start_gyro.header.sequence_number = 0x02;
-//  start_gyro.report_id = BNO_COMMAND_SET_FEATURE_COMMAND;
-//  start_gyro.feature_report_id = SH2_GYROSCOPE_CALIBRATED;
-//  start_gyro.report_interval = 0xEA60; // 60Hz
-//
-//  SHTP_Command start_mag = {0};
-//  start_mag.header = header;
-//  start_mag.header.sequence_number = 0x03;
-//  start_mag.report_id = BNO_COMMAND_SET_FEATURE_COMMAND;
-//  start_mag.feature_report_id = SH2_MAGNETIC_FIELD_CALIBRATED;
-//  start_mag.report_interval = 0xEA60; // 60Hz
-//
-//  SHTP_Command start_rotation = {0};
-//  start_rotation.header = header;
-//  start_rotation.header.sequence_number = 0x04;
-//  start_rotation.report_id = BNO_COMMAND_SET_FEATURE_COMMAND;
-//  start_rotation.feature_report_id = SH2_ROTATION_VECTOR;
-//  start_rotation.report_interval = 0xEA60; // 60Hz
+  //  SHTP_Command start_gyro = {0};
+  //  start_gyro.header = header;
+  //  start_gyro.header.sequence_number = 0x02;
+  //  start_gyro.report_id = BNO_COMMAND_SET_FEATURE_COMMAND;
+  //  start_gyro.feature_report_id = SH2_GYROSCOPE_CALIBRATED;
+  //  start_gyro.report_interval = 0xEA60; // 60Hz
+  //
+  //  SHTP_Command start_mag = {0};
+  //  start_mag.header = header;
+  //  start_mag.header.sequence_number = 0x03;
+  //  start_mag.report_id = BNO_COMMAND_SET_FEATURE_COMMAND;
+  //  start_mag.feature_report_id = SH2_MAGNETIC_FIELD_CALIBRATED;
+  //  start_mag.report_interval = 0xEA60; // 60Hz
+  //
+  //  SHTP_Command start_rotation = {0};
+  //  start_rotation.header = header;
+  //  start_rotation.header.sequence_number = 0x04;
+  //  start_rotation.report_id = BNO_COMMAND_SET_FEATURE_COMMAND;
+  //  start_rotation.feature_report_id = SH2_ROTATION_VECTOR;
+  //  start_rotation.report_interval = 0xEA60; // 60Hz
 
   // Send command over I2C to BNO to start accelerometer
-//  HAL_I2C_Master_Transmit(&hi2c1, BNO085_ADDRESS, (uint8_t *)&start_accel, sizeof(start_accel), 1000);
+  HAL_I2C_Master_Transmit(&hi2c1, BNO085_ADDRESS, (uint8_t *)&start_accel, sizeof(start_accel), 1000);
   // HAL_I2C_Master_Transmit(&hi2c1, BNO085_ADDRESS, (uint8_t *)&start_gyro, sizeof(start_gyro), 1000);
   // HAL_I2C_Master_Transmit(&hi2c1, BNO085_ADDRESS, (uint8_t *)&start_mag, sizeof(start_mag), 1000);
-//  HAL_I2C_Master_Transmit(&hi2c1, BNO085_ADDRESS, (uint8_t *)&start_rotation, sizeof(start_rotation), 1000);
+  //  HAL_I2C_Master_Transmit(&hi2c1, BNO085_ADDRESS, (uint8_t *)&start_rotation, sizeof(start_rotation), 1000);
 
   /* USER CODE END 2 */
 
@@ -326,8 +326,8 @@ int main(void)
     /* USER CODE BEGIN 3 */
 
     // Get Input Report from BNO at 60Hz
-//    HAL_I2C_Master_Receive_IT(&hi2c1, BNO085_ADDRESS, (uint8_t *)&sensor_event, sizeof(sensor_event));
-//    HAL_Delay(16); // 60Hz = 16ms
+    HAL_I2C_Master_Receive_IT(&hi2c1, BNO085_ADDRESS, (uint8_t *)&sensor_event, sizeof(sensor_event));
+    HAL_Delay(16); // 60Hz = 16ms
   }
   /* USER CODE END 3 */
 }
@@ -345,14 +345,15 @@ void SystemClock_Config(void)
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
   */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI|RCC_OSCILLATORTYPE_HSI14
-                              |RCC_OSCILLATORTYPE_HSI48;
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI|RCC_OSCILLATORTYPE_HSI14;
   RCC_OscInitStruct.HSIState = RCC_HSI_ON;
-  RCC_OscInitStruct.HSI48State = RCC_HSI48_ON;
   RCC_OscInitStruct.HSI14State = RCC_HSI14_ON;
   RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
   RCC_OscInitStruct.HSI14CalibrationValue = 16;
-  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_NONE;
+  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
+  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSI;
+  RCC_OscInitStruct.PLL.PLLMUL = RCC_PLL_MUL6;
+  RCC_OscInitStruct.PLL.PREDIV = RCC_PREDIV_DIV1;
   if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
   {
     Error_Handler();
@@ -362,7 +363,7 @@ void SystemClock_Config(void)
   */
   RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
                               |RCC_CLOCKTYPE_PCLK1;
-  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_HSI48;
+  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
   RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
   RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
 
@@ -480,7 +481,7 @@ static void MX_CAN_Init(void)
   hcan.Init.TimeTriggeredMode = DISABLE;
   hcan.Init.AutoBusOff = ENABLE;
   hcan.Init.AutoWakeUp = DISABLE;
-  hcan.Init.AutoRetransmission = ENABLE;
+  hcan.Init.AutoRetransmission = DISABLE;
   hcan.Init.ReceiveFifoLocked = DISABLE;
   hcan.Init.TransmitFifoPriority = DISABLE;
   if (HAL_CAN_Init(&hcan) != HAL_OK)
@@ -489,18 +490,18 @@ static void MX_CAN_Init(void)
   }
   /* USER CODE BEGIN CAN_Init 2 */
 
-  CAN_FilterTypeDef sFilterConfig;
-
-  sFilterConfig.FilterActivation = ENABLE;
-  sFilterConfig.FilterFIFOAssignment = CAN_RX_FIFO0; // set fifo assignment
-  sFilterConfig.FilterIdHigh = 0;
-  sFilterConfig.FilterIdLow = 0;
-  sFilterConfig.FilterMaskIdHigh = 0;
-  sFilterConfig.FilterMaskIdLow = 0;
-  sFilterConfig.FilterScale = CAN_FILTERSCALE_32BIT; // set filter scale
-  sFilterConfig.FilterBank = 0;
-  sFilterConfig.FilterMode = CAN_FILTERMODE_IDMASK;
-  HAL_CAN_ConfigFilter(&hcan, &sFilterConfig);
+//  CAN_FilterTypeDef sFilterConfig;
+//
+//  sFilterConfig.FilterActivation = ENABLE;
+//  sFilterConfig.FilterFIFOAssignment = CAN_RX_FIFO0; // set fifo assignment
+//  sFilterConfig.FilterIdHigh = 0;
+//  sFilterConfig.FilterIdLow = 0;
+//  sFilterConfig.FilterMaskIdHigh = 0;
+//  sFilterConfig.FilterMaskIdLow = 0;
+//  sFilterConfig.FilterScale = CAN_FILTERSCALE_32BIT; // set filter scale
+//  sFilterConfig.FilterBank = 0;
+//  sFilterConfig.FilterMode = CAN_FILTERMODE_IDMASK;
+//  HAL_CAN_ConfigFilter(&hcan, &sFilterConfig);
 
   if (HAL_CAN_Start(&hcan) != HAL_OK)
   {
@@ -620,6 +621,7 @@ static void MX_DMA_Init(void)
   */
 static void MX_GPIO_Init(void)
 {
+  GPIO_InitTypeDef GPIO_InitStruct = {0};
 /* USER CODE BEGIN MX_GPIO_Init_1 */
 /* USER CODE END MX_GPIO_Init_1 */
 
@@ -627,6 +629,16 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOF_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
   __HAL_RCC_GPIOB_CLK_ENABLE();
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(CAN_SLEEP_GPIO_Port, CAN_SLEEP_Pin, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin : CAN_SLEEP_Pin */
+  GPIO_InitStruct.Pin = CAN_SLEEP_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_PULLDOWN;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(CAN_SLEEP_GPIO_Port, &GPIO_InitStruct);
 
 /* USER CODE BEGIN MX_GPIO_Init_2 */
 /* USER CODE END MX_GPIO_Init_2 */
