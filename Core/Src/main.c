@@ -228,7 +228,7 @@ int main(void)
 
   /* USER CODE BEGIN 1 */
   TxHeader.IDE = CAN_ID_STD;
-  TxHeader.StdId = 0x111;
+  TxHeader.StdId = 0x401;
   TxHeader.RTR = CAN_RTR_DATA;
   TxHeader.DLC = 6;
 

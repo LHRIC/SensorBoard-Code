@@ -1,4 +1,4 @@
-  /**
+/**
  * @file BNO085.c
  * @brief IMU driver for BNO085
  * @date 2024-03-30
@@ -24,23 +24,40 @@ enum SH2_SensorReportID BNO085_DecodeSensorEvent(uint8_t *data, SH2_SensorEvent 
   switch (reportID)
   {
   case SH2_ACCELEROMETER:
-    data[0] = event->data.accelerometer.x & 0xFF;
-    data[1] = (event->data.accelerometer.x >> 8) & 0xFF;
-    data[2] = event->data.accelerometer.y & 0xFF;
-    data[3] = (event->data.accelerometer.y >> 8) & 0xFF;
-    data[4] = event->data.accelerometer.z & 0xFF;
-    data[5] = (event->data.accelerometer.z >> 8) & 0xFF;
+    // little endian
+    // data[0] = event->data.accelerometer.x & 0xFF;
+    // data[1] = (event->data.accelerometer.x >> 8) & 0xFF;
+    // data[2] = event->data.accelerometer.y & 0xFF;
+    // data[3] = (event->data.accelerometer.y >> 8) & 0xFF;
+    // data[4] = event->data.accelerometer.z & 0xFF;
+    // data[5] = (event->data.accelerometer.z >> 8) & 0xFF;
+
+    // big endian
+    data[0] = (event->data.accelerometer.x >> 8) & 0xFF;
+    data[1] = event->data.accelerometer.x & 0xFF;
+    data[2] = (event->data.accelerometer.y >> 8) & 0xFF;
+    data[3] = event->data.accelerometer.y & 0xFF;
+    data[4] = (event->data.accelerometer.z >> 8) & 0xFF;
+    data[5] = event->data.accelerometer.z & 0xFF;
+
 #ifdef DEBUG
     printf("Accelerometer: x = %d, y = %d, z = %d\n", event->data.accelerometer.x, event->data.accelerometer.y, event->data.accelerometer.z);
 #endif
     break;
   case SH2_GYROSCOPE_CALIBRATED:
-    data[0] = event->data.gyroscope_calibrated.x & 0xFF;
-    data[1] = (event->data.gyroscope_calibrated.x >> 8) & 0xFF;
-    data[2] = event->data.gyroscope_calibrated.y & 0xFF;
-    data[3] = (event->data.gyroscope_calibrated.y >> 8) & 0xFF;
-    data[4] = event->data.gyroscope_calibrated.z & 0xFF;
-    data[5] = (event->data.gyroscope_calibrated.z >> 8) & 0xFF;
+    // data[0] = event->data.gyroscope_calibrated.x & 0xFF;
+    // data[1] = (event->data.gyroscope_calibrated.x >> 8) & 0xFF;
+    // data[2] = event->data.gyroscope_calibrated.y & 0xFF;
+    // data[3] = (event->data.gyroscope_calibrated.y >> 8) & 0xFF;
+    // data[4] = event->data.gyroscope_calibrated.z & 0xFF;
+    // data[5] = (event->data.gyroscope_calibrated.z >> 8) & 0xFF;
+
+    data[0] = (event->data.gyroscope_calibrated.x >> 8) & 0xFF;
+    data[1] = event->data.gyroscope_calibrated.x & 0xFF;
+    data[2] = (event->data.gyroscope_calibrated.y >> 8) & 0xFF;
+    data[3] = event->data.gyroscope_calibrated.y & 0xFF;
+    data[4] = (event->data.gyroscope_calibrated.z >> 8) & 0xFF;
+    data[5] = event->data.gyroscope_calibrated.z & 0xFF;
 #ifdef DEBUG
     printf("Gyroscope Calibrated: x = %d, y = %d, z = %d\n", event->data.gyroscope_calibrated.x, event->data.gyroscope_calibrated.y, event->data.gyroscope_calibrated.z);
 #endif
