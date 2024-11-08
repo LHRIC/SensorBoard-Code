@@ -81,6 +81,26 @@ typedef struct __attribute__((packed)) SHTP_Command
   uint32_t sensor_specific_config;
 } SHTP_Command;
 
+typedef struct __attribute__((packed)) SHTP_CommandRequest
+{
+  // always BNO_COMMAND_REQUEST
+  uint8_t report_id;
+  uint8_t sequence_number;
+  uint8_t command;
+  uint8_t command_parameters[9];
+} SHTP_CommandRequest;
+
+typedef struct __attribute__((packed)) SHTP_CommandResponse
+{
+  // always BNO_COMMAND_RESPONSE
+  uint8_t report_id;
+  uint8_t sequence_number;
+  uint8_t command;
+  uint8_t command_sequence_number;
+  uint8_t response_sequence_number;
+  uint8_t command_parameters[11];
+} SHTP_CommandResponse;
+
 typedef struct __attribute__((packed)) SH2_Timestamp
 {
   uint8_t report_id;

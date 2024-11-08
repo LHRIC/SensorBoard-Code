@@ -21,8 +21,8 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include <stdbool.h>
 #include "BNO085.h"
+#include <stdbool.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -37,20 +37,23 @@
 
 /*
  * Time Period for Interrupt:
- * - this htim16 runs at a 16mhz clock, and is currently set to be divided down by 1600
- * - that means the timer runs on a 10khz clock, and hits a timer interrupt after TIME_PERIOD - 1 ticks
+ * - this htim16 runs at a 16mhz clock, and is currently set to be divided down
+ * by 1600
+ * - that means the timer runs on a 10khz clock, and hits a timer interrupt
+ * after TIME_PERIOD - 1 ticks
  * - the TIME_PERIOD defines the frequency of CAN packet sends
  * - ex. TIME_PERIOD of 10000 means 1   interrupt/second
  * 		 TIME_PERIOD of 1000  means 10  interrupts/second
  * 		 TIME_PERIOD of 100   means 100 interrupts/second
  *
- * Use the correct time period for the sensors on the board (typically the fastest sensor)
- * Also note if the ioc changes the TIME_PERIOD will disappear so pls add this line back
+ * Use the correct time period for the sensors on the board (typically the
+ * fastest sensor) Also note if the ioc changes the TIME_PERIOD will disappear
+ * so pls add this line back
  *
  * htim16.Init.Period = TIME_PERIOD - 1;
  *
  */
-#define TIME_PERIOD 1000
+#define TIME_PERIOD 10000
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -70,12 +73,15 @@ TIM_HandleTypeDef htim16;
 
 /* USER CODE BEGIN PV */
 CAN_TxHeaderTypeDef TxHeader;
-CAN_TxHeaderTypeDef TxHeaderRotation;
+CAN_TxHeaderTypeDef TxHeaderADC;
 uint8_t TxData[8] = {0};
+uint8_t TxDataADC[8] = {0};
 uint32_t TxMailbox;
 uint16_t ADC_DMA_BUFF[NUM_ADC_CHANNELS * AVG_PER_CHANNEL] = {0};
 SH2_SensorEvent sensor_event = {0};
+SHTP_CommandResponse initialize_response = {0};
 uint8_t can_interval = 0;
+uint8_t timer_interrupt_count = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -102,32 +108,34 @@ void I2C_Receive_Callback(I2C_HandleTypeDef *hi2c1)
 {
   CAN_TxHeaderTypeDef *TxHeaderToUse = &TxHeader;
   uint8_t sensor = BNO085_DecodeSensorEvent(TxData, &sensor_event);
-      switch (sensor)
-      {
-      case SH2_ACCELEROMETER:
-        TxHeaderToUse = &TxHeader;
-        break;
-      case SH2_GYROSCOPE_CALIBRATED:
-        TxHeaderToUse = &TxHeader;
-        break;
-      case SH2_MAGNETIC_FIELD_CALIBRATED:
-        TxHeaderToUse = &TxHeader;
-        break;
-      case SH2_ROTATION_VECTOR:
-        TxHeaderToUse = &TxHeaderRotation;
-        break;
-      default:
-        break;
-      }
+  switch (sensor)
+  {
+  case SH2_ACCELEROMETER:
+    TxHeaderToUse = &TxHeader;
+    break;
+  case SH2_GYROSCOPE_CALIBRATED:
+    TxHeaderToUse = &TxHeader;
+    break;
+  case SH2_MAGNETIC_FIELD_CALIBRATED:
+    TxHeaderToUse = &TxHeader;
+    break;
+  // case SH2_ROTATION_VECTOR:
+  //   TxHeaderToUse = &TxHeaderRotation;
+  //   break;
+  default:
+    break;
+  }
 
-      if (HAL_CAN_AddTxMessage(&hcan, TxHeaderToUse, TxData, &TxMailbox) != HAL_OK)
-      {
-        Error_Handler();
-      }
+  if (HAL_CAN_AddTxMessage(&hcan, TxHeaderToUse, TxData, &TxMailbox) !=
+      HAL_OK)
+  {
+    // Error_Handler();
+  }
 }
 
 /*
- * @brief Averages an ADC channel over the DMA buffer, achieves better resolution
+ * @brief Averages an ADC channel over the DMA buffer, achieves better
+ * resolution
  * @param ADC_PIN - ADC channel pin
  * @retval uint16_t - averaged ADC DMA value on success, -1 if invalid pin
  */
@@ -180,16 +188,16 @@ bool ADC_CAN_Package(uint16_t ADC_Pin)
   switch (ADC_Pin)
   {
   case S1_Pin:
-    value = (uint16_t *)&TxData[0];
+    value = (uint16_t *)&TxDataADC[0];
     break;
   case S2_Pin:
-    value = (uint16_t *)&TxData[2];
+    value = (uint16_t *)&TxDataADC[2];
     break;
   case S3_Pin:
-    value = (uint16_t *)&TxData[4];
+    value = (uint16_t *)&TxDataADC[4];
     break;
   case S4_Pin:
-    value = (uint16_t *)&TxData[6];
+    value = (uint16_t *)&TxDataADC[6];
     break;
   default:
     value = NULL;
@@ -208,34 +216,50 @@ bool ADC_CAN_Package(uint16_t ADC_Pin)
 // Callback: timer has rolled over
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
-  // Check which version of the timer triggered this callback and send CAN packet
+  // Check which version of the timer triggered this callback and send CAN
+  // packet
   if (htim == &htim16)
   {
-    if (!ADC_CAN_Package(S1_Pin) || HAL_CAN_AddTxMessage(&hcan, &TxHeader, TxData, &TxMailbox) != HAL_OK)
-    {
-      Error_Handler();
-    }
+    // if (!ADC_CAN_Package(S1_Pin) ||
+    //     !ADC_CAN_Package(S2_Pin) ||
+    //     !ADC_CAN_Package(S3_Pin) ||
+    //     !ADC_CAN_Package(S4_Pin) ||
+    //     HAL_CAN_AddTxMessage(&hcan, &TxHeaderADC, TxDataADC, &TxMailbox) !=
+    //         HAL_OK)
+    // {
+    //   // Error_Handler();
+    // }
+
+    // Every 60Hz, send a request for IMU data
+    // if (timer_interrupt_count % 60 == 0)
+    // {
+    //   HAL_I2C_Master_Transmit(&hi2c1, BNO085_ADDRESS, (uint8_t *)&sensor_event,
+    //                           sizeof(sensor_event), 1000);
+    // }
+
+    // Increment the timer interrupt count
+    timer_interrupt_count++;
   }
 }
 /* USER CODE END 0 */
 
 /**
-  * @brief  The application entry point.
-  * @retval int
-  */
+ * @brief  The application entry point.
+ * @retval int
+ */
 int main(void)
 {
 
   /* USER CODE BEGIN 1 */
   TxHeader.IDE = CAN_ID_STD;
-  TxHeader.StdId = 0x401;
+  TxHeader.StdId = 0x732;
   TxHeader.RTR = CAN_RTR_DATA;
   TxHeader.DLC = 6;
 
-  TxHeaderRotation.IDE = CAN_ID_STD;
-  TxHeaderRotation.StdId = 0x112;
-  TxHeaderRotation.RTR = CAN_RTR_DATA;
-  TxHeaderRotation.DLC = 8;
+  TxHeaderADC.IDE = CAN_ID_STD;
+  TxHeaderADC.StdId = 0x404;
+  TxHeaderADC.RTR = CAN_RTR_DATA;
+  TxHeaderADC.DLC = 8;
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -262,28 +286,36 @@ int main(void)
   MX_I2C1_Init();
   MX_TIM16_Init();
   /* USER CODE BEGIN 2 */
-  // if (HAL_ADC_Start_DMA(&hadc, (uint32_t *)ADC_DMA_BUFF, NUM_ADC_CHANNELS * AVG_PER_CHANNEL) != HAL_OK)
-  // {
-  //   Error_Handler();
-  // }
-
-  // if (HAL_TIM_Base_Start_IT(&htim16) != HAL_OK)
-  // {
-  //   Error_Handler();
-  // }
 
   HAL_I2C_RegisterCallback(&hi2c1, HAL_I2C_MASTER_RX_COMPLETE_CB_ID, I2C_Receive_Callback);
 
+  HAL_Delay(1000);
   // Create SHTP header
   SHTP_Header header = {0};
   header.length = 0x15;
   header.channel = SHTP_SENSOR_HUB_CHANNEL;
   header.sequence_number = 0x00;
 
+  // Create SH2 Initialize Command
+  SHTP_CommandRequest initialize = {0};
+  initialize.report_id = BNO_COMMAND_REQUEST;
+  initialize.sequence_number = 0x00;
+  initialize.command = 0x04; // Initialize
+  initialize.command_parameters[0] = 0x01;
+
+  // Create SH2 Tare Command
+  SHTP_CommandRequest tare = {0};
+  tare.report_id = BNO_COMMAND_REQUEST;
+  tare.sequence_number = 0x00;
+  tare.command = 0x03;               // Tare command
+  tare.command_parameters[0] = 0x00; // Tare NOW
+  tare.command_parameters[1] = 0x07; // Tare all motion sensors
+  tare.command_parameters[2] = 0x00; // Tare using rotation vector
+
   // Create SH2 Set Feature Command
   SHTP_Command start_accel = {0};
   start_accel.header = header;
-  start_accel.header.sequence_number = 0x01;
+  start_accel.header.sequence_number = 0x00;
   start_accel.report_id = BNO_COMMAND_SET_FEATURE_COMMAND;
   start_accel.feature_report_id = SH2_ACCELEROMETER;
   start_accel.report_interval = 0xEA60; // 60Hz
@@ -309,13 +341,47 @@ int main(void)
   //  start_rotation.feature_report_id = SH2_ROTATION_VECTOR;
   //  start_rotation.report_interval = 0xEA60; // 60Hz
 
-  // Send command over I2C to BNO to start accelerometer
-  HAL_I2C_Master_Transmit(&hi2c1, BNO085_ADDRESS, (uint8_t *)&start_accel, sizeof(start_accel), 1000);
-  // HAL_I2C_Master_Transmit(&hi2c1, BNO085_ADDRESS, (uint8_t *)&start_gyro, sizeof(start_gyro), 1000);
-  // HAL_I2C_Master_Transmit(&hi2c1, BNO085_ADDRESS, (uint8_t *)&start_mag, sizeof(start_mag), 1000);
-  //  HAL_I2C_Master_Transmit(&hi2c1, BNO085_ADDRESS, (uint8_t *)&start_rotation, sizeof(start_rotation), 1000);
+  SHTP_Header header_report = {0};
 
+  HAL_I2C_Master_Receive(&hi2c1, BNO085_ADDRESS, (uint8_t *)&header_report,
+                          sizeof(header_report), 1000);
+
+  uint8_t data[header_report.length - sizeof(header_report)];
+
+  HAL_I2C_Master_Receive(&hi2c1, BNO085_ADDRESS, (uint8_t *)&data,
+                          sizeof(data), 1000);
+
+  // Send Initialize command to BNO
+  HAL_I2C_Master_Transmit(&hi2c1, BNO085_ADDRESS, (uint8_t *)&initialize,
+                          sizeof(initialize), 1000);
+
+  // Send Tare command to BNO
+  HAL_I2C_Master_Transmit(&hi2c1, BNO085_ADDRESS, (uint8_t *)&tare,
+                          sizeof(tare), 1000);
+
+  // Send command over I2C to BNO to start accelerometer
+  HAL_I2C_Master_Transmit(&hi2c1, BNO085_ADDRESS, (uint8_t *)&start_accel,
+                          sizeof(start_accel), 1000);
+
+  // HAL_I2C_Master_Transmit(&hi2c1, BNO085_ADDRESS, (uint8_t *)&start_gyro,
+  // sizeof(start_gyro), 1000);
+  // HAL_I2C_Master_Transmit(&hi2c1, BNO085_ADDRESS,
+  // (uint8_t *)&start_mag, sizeof(start_mag), 1000);
+  //  HAL_I2C_Master_Transmit(&hi2c1, BNO085_ADDRESS, (uint8_t
+  //  *)&start_rotation, sizeof(start_rotation), 1000);
+
+  //   if (HAL_ADC_Start_DMA(&hadc, (uint32_t *)ADC_DMA_BUFF, NUM_ADC_CHANNELS * AVG_PER_CHANNEL) != HAL_OK)
+  // {
+  //   Error_Handler();
+  // }
+
+  // if (HAL_TIM_Base_Start_IT(&htim16) != HAL_OK)
+  // {
+  //   Error_Handler();
+  // }
   /* USER CODE END 2 */
+
+  uint32_t previousMillis = 0;
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
@@ -324,18 +390,35 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+    uint32_t currentMillis = HAL_GetTick();
 
     // Get Input Report from BNO at 60Hz
-    HAL_I2C_Master_Receive_IT(&hi2c1, BNO085_ADDRESS, (uint8_t *)&sensor_event, sizeof(sensor_event));
+    HAL_I2C_Master_Receive_IT(&hi2c1, BNO085_ADDRESS, (uint8_t *)&sensor_event,
+                              sizeof(sensor_event));
+
+    // Intermittently send set feature commands to BNO
+    // if (currentMillis - previousMillis >= 5000)
+    // {
+    //   // Send initialize command to BNO
+    //   HAL_I2C_Master_Transmit(&hi2c1, BNO085_ADDRESS, (uint8_t *)&initialize,
+    //                           sizeof(initialize), 1000);
+
+    //   // Send command over I2C to BNO to start accelerometer
+    //   HAL_I2C_Master_Transmit(&hi2c1, BNO085_ADDRESS, (uint8_t *)&start_accel,
+    //                           sizeof(start_accel), 1000);
+
+    //   previousMillis = currentMillis;
+    // }
+
     HAL_Delay(16); // 60Hz = 16ms
   }
   /* USER CODE END 3 */
 }
 
 /**
-  * @brief System Clock Configuration
-  * @retval None
-  */
+ * @brief System Clock Configuration
+ * @retval None
+ */
 void SystemClock_Config(void)
 {
   RCC_OscInitTypeDef RCC_OscInitStruct = {0};
@@ -343,31 +426,28 @@ void SystemClock_Config(void)
   RCC_PeriphCLKInitTypeDef PeriphClkInit = {0};
 
   /** Initializes the RCC Oscillators according to the specified parameters
-  * in the RCC_OscInitTypeDef structure.
-  */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI|RCC_OSCILLATORTYPE_HSI14;
+   * in the RCC_OscInitTypeDef structure.
+   */
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI | RCC_OSCILLATORTYPE_HSI14 | RCC_OSCILLATORTYPE_HSE;
+  RCC_OscInitStruct.HSEState = RCC_HSE_ON;
   RCC_OscInitStruct.HSIState = RCC_HSI_ON;
   RCC_OscInitStruct.HSI14State = RCC_HSI14_ON;
   RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
   RCC_OscInitStruct.HSI14CalibrationValue = 16;
-  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
-  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSI;
-  RCC_OscInitStruct.PLL.PLLMUL = RCC_PLL_MUL6;
-  RCC_OscInitStruct.PLL.PREDIV = RCC_PREDIV_DIV1;
+  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_NONE;
   if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
   {
     Error_Handler();
   }
 
   /** Initializes the CPU, AHB and APB buses clocks
-  */
-  RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
-                              |RCC_CLOCKTYPE_PCLK1;
-  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
+   */
+  RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK | RCC_CLOCKTYPE_SYSCLK | RCC_CLOCKTYPE_PCLK1;
+  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_HSE;
   RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
   RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
 
-  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_1) != HAL_OK)
+  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_0) != HAL_OK)
   {
     Error_Handler();
   }
@@ -380,10 +460,10 @@ void SystemClock_Config(void)
 }
 
 /**
-  * @brief ADC Initialization Function
-  * @param None
-  * @retval None
-  */
+ * @brief ADC Initialization Function
+ * @param None
+ * @retval None
+ */
 static void MX_ADC_Init(void)
 {
 
@@ -398,7 +478,7 @@ static void MX_ADC_Init(void)
   /* USER CODE END ADC_Init 1 */
 
   /** Configure the global features of the ADC (Clock, Resolution, Data Alignment and number of conversion)
-  */
+   */
   hadc.Instance = ADC1;
   hadc.Init.ClockPrescaler = ADC_CLOCK_ASYNC_DIV1;
   hadc.Init.Resolution = ADC_RESOLUTION_12B;
@@ -419,7 +499,7 @@ static void MX_ADC_Init(void)
   }
 
   /** Configure for the selected ADC regular channel to be converted.
-  */
+   */
   sConfig.Channel = ADC_CHANNEL_6;
   sConfig.Rank = ADC_RANK_CHANNEL_NUMBER;
   sConfig.SamplingTime = ADC_SAMPLETIME_1CYCLE_5;
@@ -429,7 +509,7 @@ static void MX_ADC_Init(void)
   }
 
   /** Configure for the selected ADC regular channel to be converted.
-  */
+   */
   sConfig.Channel = ADC_CHANNEL_7;
   if (HAL_ADC_ConfigChannel(&hadc, &sConfig) != HAL_OK)
   {
@@ -437,7 +517,7 @@ static void MX_ADC_Init(void)
   }
 
   /** Configure for the selected ADC regular channel to be converted.
-  */
+   */
   sConfig.Channel = ADC_CHANNEL_8;
   if (HAL_ADC_ConfigChannel(&hadc, &sConfig) != HAL_OK)
   {
@@ -445,7 +525,7 @@ static void MX_ADC_Init(void)
   }
 
   /** Configure for the selected ADC regular channel to be converted.
-  */
+   */
   sConfig.Channel = ADC_CHANNEL_9;
   if (HAL_ADC_ConfigChannel(&hadc, &sConfig) != HAL_OK)
   {
@@ -454,14 +534,13 @@ static void MX_ADC_Init(void)
   /* USER CODE BEGIN ADC_Init 2 */
 
   /* USER CODE END ADC_Init 2 */
-
 }
 
 /**
-  * @brief CAN Initialization Function
-  * @param None
-  * @retval None
-  */
+ * @brief CAN Initialization Function
+ * @param None
+ * @retval None
+ */
 static void MX_CAN_Init(void)
 {
 
@@ -473,7 +552,7 @@ static void MX_CAN_Init(void)
 
   /* USER CODE END CAN_Init 1 */
   hcan.Instance = CAN;
-  hcan.Init.Prescaler = 3;
+  hcan.Init.Prescaler = 1;
   hcan.Init.Mode = CAN_MODE_NORMAL;
   hcan.Init.SyncJumpWidth = CAN_SJW_1TQ;
   hcan.Init.TimeSeg1 = CAN_BS1_13TQ;
@@ -490,32 +569,31 @@ static void MX_CAN_Init(void)
   }
   /* USER CODE BEGIN CAN_Init 2 */
 
-//  CAN_FilterTypeDef sFilterConfig;
-//
-//  sFilterConfig.FilterActivation = ENABLE;
-//  sFilterConfig.FilterFIFOAssignment = CAN_RX_FIFO0; // set fifo assignment
-//  sFilterConfig.FilterIdHigh = 0;
-//  sFilterConfig.FilterIdLow = 0;
-//  sFilterConfig.FilterMaskIdHigh = 0;
-//  sFilterConfig.FilterMaskIdLow = 0;
-//  sFilterConfig.FilterScale = CAN_FILTERSCALE_32BIT; // set filter scale
-//  sFilterConfig.FilterBank = 0;
-//  sFilterConfig.FilterMode = CAN_FILTERMODE_IDMASK;
-//  HAL_CAN_ConfigFilter(&hcan, &sFilterConfig);
+  //  CAN_FilterTypeDef sFilterConfig;
+  //
+  //  sFilterConfig.FilterActivation = ENABLE;
+  //  sFilterConfig.FilterFIFOAssignment = CAN_RX_FIFO0; // set fifo assignment
+  //  sFilterConfig.FilterIdHigh = 0;
+  //  sFilterConfig.FilterIdLow = 0;
+  //  sFilterConfig.FilterMaskIdHigh = 0;
+  //  sFilterConfig.FilterMaskIdLow = 0;
+  //  sFilterConfig.FilterScale = CAN_FILTERSCALE_32BIT; // set filter scale
+  //  sFilterConfig.FilterBank = 0;
+  //  sFilterConfig.FilterMode = CAN_FILTERMODE_IDMASK;
+  //  HAL_CAN_ConfigFilter(&hcan, &sFilterConfig);
 
   if (HAL_CAN_Start(&hcan) != HAL_OK)
   {
     Error_Handler();
   }
   /* USER CODE END CAN_Init 2 */
-
 }
 
 /**
-  * @brief I2C1 Initialization Function
-  * @param None
-  * @retval None
-  */
+ * @brief I2C1 Initialization Function
+ * @param None
+ * @retval None
+ */
 static void MX_I2C1_Init(void)
 {
 
@@ -541,14 +619,14 @@ static void MX_I2C1_Init(void)
   }
 
   /** Configure Analogue filter
-  */
+   */
   if (HAL_I2CEx_ConfigAnalogFilter(&hi2c1, I2C_ANALOGFILTER_DISABLE) != HAL_OK)
   {
     Error_Handler();
   }
 
   /** Configure Digital filter
-  */
+   */
   if (HAL_I2CEx_ConfigDigitalFilter(&hi2c1, 0) != HAL_OK)
   {
     Error_Handler();
@@ -556,14 +634,13 @@ static void MX_I2C1_Init(void)
   /* USER CODE BEGIN I2C1_Init 2 */
 
   /* USER CODE END I2C1_Init 2 */
-
 }
 
 /**
-  * @brief TIM16 Initialization Function
-  * @param None
-  * @retval None
-  */
+ * @brief TIM16 Initialization Function
+ * @param None
+ * @retval None
+ */
 static void MX_TIM16_Init(void)
 {
 
@@ -575,9 +652,9 @@ static void MX_TIM16_Init(void)
 
   /* USER CODE END TIM16_Init 1 */
   htim16.Instance = TIM16;
-  htim16.Init.Prescaler = 0;
+  htim16.Init.Prescaler = 16;
   htim16.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim16.Init.Period = 65535;
+  htim16.Init.Period = 10000;
   htim16.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim16.Init.RepetitionCounter = 0;
   htim16.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
@@ -587,7 +664,8 @@ static void MX_TIM16_Init(void)
   }
   /* USER CODE BEGIN TIM16_Init 2 */
 
-  // Setting period manually and re-initing so I don't have to update every ioc change
+  // Setting period manually and re-initing so I don't have to update every ioc
+  // change
   htim16.Init.Period = TIME_PERIOD - 1;
   if (HAL_TIM_Base_Init(&htim16) != HAL_OK)
   {
@@ -595,12 +673,11 @@ static void MX_TIM16_Init(void)
   }
 
   /* USER CODE END TIM16_Init 2 */
-
 }
 
 /**
-  * Enable DMA controller clock
-  */
+ * Enable DMA controller clock
+ */
 static void MX_DMA_Init(void)
 {
 
@@ -611,19 +688,18 @@ static void MX_DMA_Init(void)
   /* DMA1_Channel1_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(DMA1_Channel1_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(DMA1_Channel1_IRQn);
-
 }
 
 /**
-  * @brief GPIO Initialization Function
-  * @param None
-  * @retval None
-  */
+ * @brief GPIO Initialization Function
+ * @param None
+ * @retval None
+ */
 static void MX_GPIO_Init(void)
 {
   GPIO_InitTypeDef GPIO_InitStruct = {0};
-/* USER CODE BEGIN MX_GPIO_Init_1 */
-/* USER CODE END MX_GPIO_Init_1 */
+  /* USER CODE BEGIN MX_GPIO_Init_1 */
+  /* USER CODE END MX_GPIO_Init_1 */
 
   /* GPIO Ports Clock Enable */
   __HAL_RCC_GPIOF_CLK_ENABLE();
@@ -640,8 +716,8 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(CAN_SLEEP_GPIO_Port, &GPIO_InitStruct);
 
-/* USER CODE BEGIN MX_GPIO_Init_2 */
-/* USER CODE END MX_GPIO_Init_2 */
+  /* USER CODE BEGIN MX_GPIO_Init_2 */
+  /* USER CODE END MX_GPIO_Init_2 */
 }
 
 /* USER CODE BEGIN 4 */
@@ -649,9 +725,9 @@ static void MX_GPIO_Init(void)
 /* USER CODE END 4 */
 
 /**
-  * @brief  This function is executed in case of error occurrence.
-  * @retval None
-  */
+ * @brief  This function is executed in case of error occurrence.
+ * @retval None
+ */
 void Error_Handler(void)
 {
   /* USER CODE BEGIN Error_Handler_Debug */
@@ -663,19 +739,20 @@ void Error_Handler(void)
   /* USER CODE END Error_Handler_Debug */
 }
 
-#ifdef  USE_FULL_ASSERT
+#ifdef USE_FULL_ASSERT
 /**
-  * @brief  Reports the name of the source file and the source line number
-  *         where the assert_param error has occurred.
-  * @param  file: pointer to the source file name
-  * @param  line: assert_param error line source number
-  * @retval None
-  */
+ * @brief  Reports the name of the source file and the source line number
+ *         where the assert_param error has occurred.
+ * @param  file: pointer to the source file name
+ * @param  line: assert_param error line source number
+ * @retval None
+ */
 void assert_failed(uint8_t *file, uint32_t line)
 {
   /* USER CODE BEGIN 6 */
-  /* User can add his own implementation to report the file name and line number,
-     ex: printf("Wrong parameters value: file %s on line %d\r\n", file, line) */
+  /* User can add his own implementation to report the file name and line
+     number, ex: printf("Wrong parameters value: file %s on line %d\r\n", file,
+     line) */
   /* USER CODE END 6 */
 }
 #endif /* USE_FULL_ASSERT */
