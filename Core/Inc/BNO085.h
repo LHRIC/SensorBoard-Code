@@ -158,6 +158,8 @@ typedef struct __attribute__((packed)) SH2_SensorEvent
   union SH2_SensorData
   {
     SH2_Accelerometer accelerometer;
+    SH2_Accelerometer linear_acceleration;
+
     SH2_Gyroscope_Calibrated gyroscope_calibrated;
     // SH2_Gyroscope_Uncalibrated gyroscope_uncalibrated;
     SH2_Magnetometer_Calibrated magnetometer_calibrated;

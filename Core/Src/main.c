@@ -72,8 +72,11 @@ I2C_HandleTypeDef hi2c1;
 TIM_HandleTypeDef htim16;
 
 /* USER CODE BEGIN PV */
-CAN_TxHeaderTypeDef TxHeader;
+CAN_TxHeaderTypeDef TxHeaderAccel;
+CAN_TxHeaderTypeDef TxHeaderGyro;
+CAN_TxHeaderTypeDef TxHeaderLinAccel;
 CAN_TxHeaderTypeDef TxHeaderADC;
+CAN_TxHeaderTypeDef TxHeaderRotation;
 uint8_t TxData[8] = {0};
 uint8_t TxDataADC[8] = {0};
 uint32_t TxMailbox;
@@ -106,22 +109,24 @@ uint16_t ADC_DMA_AVG(uint16_t ADC_Pin);
  */
 void I2C_Receive_Callback(I2C_HandleTypeDef *hi2c1)
 {
-  CAN_TxHeaderTypeDef *TxHeaderToUse = &TxHeader;
+  CAN_TxHeaderTypeDef *TxHeaderToUse = &TxHeaderAccel;
   uint8_t sensor = BNO085_DecodeSensorEvent(TxData, &sensor_event);
+
   switch (sensor)
   {
   case SH2_ACCELEROMETER:
-    TxHeaderToUse = &TxHeader;
+    TxHeaderToUse = &TxHeaderAccel;
     break;
   case SH2_GYROSCOPE_CALIBRATED:
-    TxHeaderToUse = &TxHeader;
+    TxHeaderToUse = &TxHeaderGyro;
     break;
-  case SH2_MAGNETIC_FIELD_CALIBRATED:
-    TxHeaderToUse = &TxHeader;
+  case SH2_LINEAR_ACCELERATION:
+    TxHeaderToUse = &TxHeaderLinAccel;
     break;
-  // case SH2_ROTATION_VECTOR:
-  //   TxHeaderToUse = &TxHeaderRotation;
-  //   break;
+  case SH2_ROTATION_VECTOR:
+    // since rotation vector is 8 bytes, we need to use a different header
+    TxHeaderToUse = &TxHeaderRotation;
+    break;
   default:
     break;
   }
@@ -251,15 +256,30 @@ int main(void)
 {
 
   /* USER CODE BEGIN 1 */
-  TxHeader.IDE = CAN_ID_STD;
-  TxHeader.StdId = 0x732;
-  TxHeader.RTR = CAN_RTR_DATA;
-  TxHeader.DLC = 6;
+  TxHeaderAccel.IDE = CAN_ID_STD;
+  TxHeaderAccel.StdId = 0x400;
+  TxHeaderAccel.RTR = CAN_RTR_DATA;
+  TxHeaderAccel.DLC = 6;
 
   TxHeaderADC.IDE = CAN_ID_STD;
   TxHeaderADC.StdId = 0x404;
   TxHeaderADC.RTR = CAN_RTR_DATA;
   TxHeaderADC.DLC = 8;
+
+  TxHeaderGyro.IDE = CAN_ID_STD;
+  TxHeaderGyro.StdId = 0x406;
+  TxHeaderGyro.RTR = CAN_RTR_DATA;
+  TxHeaderGyro.DLC = 6;
+
+  TxHeaderLinAccel.IDE = CAN_ID_STD;
+  TxHeaderLinAccel.StdId = 0x407;
+  TxHeaderLinAccel.RTR = CAN_RTR_DATA;
+  TxHeaderLinAccel.DLC = 6;
+
+  TxHeaderRotation.IDE = CAN_ID_STD;
+  TxHeaderRotation.StdId = 0x408;
+  TxHeaderRotation.RTR = CAN_RTR_DATA;
+  TxHeaderRotation.DLC = 8;
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -290,6 +310,7 @@ int main(void)
   HAL_I2C_RegisterCallback(&hi2c1, HAL_I2C_MASTER_RX_COMPLETE_CB_ID, I2C_Receive_Callback);
 
   HAL_Delay(1000);
+
   // Create SHTP header
   SHTP_Header header = {0};
   header.length = 0x15;
@@ -320,26 +341,26 @@ int main(void)
   start_accel.feature_report_id = SH2_ACCELEROMETER;
   start_accel.report_interval = 0xEA60; // 60Hz
 
-  //  SHTP_Command start_gyro = {0};
-  //  start_gyro.header = header;
-  //  start_gyro.header.sequence_number = 0x02;
-  //  start_gyro.report_id = BNO_COMMAND_SET_FEATURE_COMMAND;
-  //  start_gyro.feature_report_id = SH2_GYROSCOPE_CALIBRATED;
-  //  start_gyro.report_interval = 0xEA60; // 60Hz
-  //
-  //  SHTP_Command start_mag = {0};
-  //  start_mag.header = header;
-  //  start_mag.header.sequence_number = 0x03;
-  //  start_mag.report_id = BNO_COMMAND_SET_FEATURE_COMMAND;
-  //  start_mag.feature_report_id = SH2_MAGNETIC_FIELD_CALIBRATED;
-  //  start_mag.report_interval = 0xEA60; // 60Hz
-  //
-  //  SHTP_Command start_rotation = {0};
-  //  start_rotation.header = header;
-  //  start_rotation.header.sequence_number = 0x04;
-  //  start_rotation.report_id = BNO_COMMAND_SET_FEATURE_COMMAND;
-  //  start_rotation.feature_report_id = SH2_ROTATION_VECTOR;
-  //  start_rotation.report_interval = 0xEA60; // 60Hz
+  SHTP_Command start_linear_accel = {0};
+  start_accel.header = header;
+  start_accel.header.sequence_number = 0x00;
+  start_accel.report_id = BNO_COMMAND_SET_FEATURE_COMMAND;
+  start_accel.feature_report_id = SH2_LINEAR_ACCELERATION;
+  start_accel.report_interval = 0xEA60; // 60Hz
+
+  SHTP_Command start_gyro = {0};
+  start_gyro.header = header;
+  start_gyro.header.sequence_number = 0x02;
+  start_gyro.report_id = BNO_COMMAND_SET_FEATURE_COMMAND;
+  start_gyro.feature_report_id = SH2_GYROSCOPE_CALIBRATED;
+  start_gyro.report_interval = 0xEA60; // 60Hz
+
+  SHTP_Command start_rotation = {0};
+  start_rotation.header = header;
+  start_rotation.header.sequence_number = 0x04;
+  start_rotation.report_id = BNO_COMMAND_SET_FEATURE_COMMAND;
+  start_rotation.feature_report_id = SH2_ROTATION_VECTOR;
+  start_rotation.report_interval = 0xEA60; // 60Hz
 
   SHTP_Header header_report = {0};
 
@@ -359,29 +380,28 @@ int main(void)
   HAL_I2C_Master_Transmit(&hi2c1, BNO085_ADDRESS, (uint8_t *)&tare,
                           sizeof(tare), 1000);
 
-  // Send command over I2C to BNO to start accelerometer
+  // Send command over I2C to BNO to start sensors
   HAL_I2C_Master_Transmit(&hi2c1, BNO085_ADDRESS, (uint8_t *)&start_accel,
                           sizeof(start_accel), 1000);
 
-  // HAL_I2C_Master_Transmit(&hi2c1, BNO085_ADDRESS, (uint8_t *)&start_gyro,
-  // sizeof(start_gyro), 1000);
-  // HAL_I2C_Master_Transmit(&hi2c1, BNO085_ADDRESS,
-  // (uint8_t *)&start_mag, sizeof(start_mag), 1000);
-  //  HAL_I2C_Master_Transmit(&hi2c1, BNO085_ADDRESS, (uint8_t
-  //  *)&start_rotation, sizeof(start_rotation), 1000);
+  HAL_I2C_Master_Transmit(&hi2c1, BNO085_ADDRESS, (uint8_t *)&start_linear_accel,
+                          sizeof(start_linear_accel), 1000);
+
+  HAL_I2C_Master_Transmit(&hi2c1, BNO085_ADDRESS, (uint8_t *)&start_gyro,
+                          sizeof(start_gyro), 1000);
+
+  HAL_I2C_Master_Transmit(&hi2c1, BNO085_ADDRESS, (uint8_t *)&start_rotation, sizeof(start_rotation), 1000);
 
   //   if (HAL_ADC_Start_DMA(&hadc, (uint32_t *)ADC_DMA_BUFF, NUM_ADC_CHANNELS * AVG_PER_CHANNEL) != HAL_OK)
   // {
   //   Error_Handler();
-  // }
+    // }
 
   // if (HAL_TIM_Base_Start_IT(&htim16) != HAL_OK)
   // {
   //   Error_Handler();
   // }
   /* USER CODE END 2 */
-
-  uint32_t previousMillis = 0;
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
@@ -390,25 +410,18 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-    uint32_t currentMillis = HAL_GetTick();
-
     // Get Input Report from BNO at 60Hz
     HAL_I2C_Master_Receive_IT(&hi2c1, BNO085_ADDRESS, (uint8_t *)&sensor_event,
                               sizeof(sensor_event));
 
-    // Intermittently send set feature commands to BNO
-    // if (currentMillis - previousMillis >= 5000)
-    // {
-    //   // Send initialize command to BNO
-    //   HAL_I2C_Master_Transmit(&hi2c1, BNO085_ADDRESS, (uint8_t *)&initialize,
-    //                           sizeof(initialize), 1000);
+    HAL_I2C_Master_Receive_IT(&hi2c1, BNO085_ADDRESS, (uint8_t *)&sensor_event,
+                              sizeof(sensor_event));
 
-    //   // Send command over I2C to BNO to start accelerometer
-    //   HAL_I2C_Master_Transmit(&hi2c1, BNO085_ADDRESS, (uint8_t *)&start_accel,
-    //                           sizeof(start_accel), 1000);
+    HAL_I2C_Master_Receive_IT(&hi2c1, BNO085_ADDRESS, (uint8_t *)&sensor_event,
+                              sizeof(sensor_event));
 
-    //   previousMillis = currentMillis;
-    // }
+    HAL_I2C_Master_Receive_IT(&hi2c1, BNO085_ADDRESS, (uint8_t *)&sensor_event,
+                              sizeof(sensor_event));
 
     HAL_Delay(16); // 60Hz = 16ms
   }
