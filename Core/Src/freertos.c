@@ -82,6 +82,11 @@ const osThreadAttr_t service_queue_attributes = {
   .stack_size = 128 * 4,
   .priority = (osPriority_t) osPriorityHigh,
 };
+/* Definitions for can_msg_queue */
+osMessageQueueId_t can_msg_queueHandle;
+const osMessageQueueAttr_t can_msg_queue_attributes = {
+  .name = "can_msg_queue"
+};
 /* Definitions for i2c_mutex */
 osMutexId_t i2c_mutexHandle;
 const osMutexAttr_t i2c_mutex_attributes = {
@@ -125,6 +130,10 @@ void MX_FREERTOS_Init(void) {
   /* USER CODE BEGIN RTOS_TIMERS */
   /* start timers, add new ones, ... */
   /* USER CODE END RTOS_TIMERS */
+
+  /* Create the queue(s) */
+  /* creation of can_msg_queue */
+  can_msg_queueHandle = osMessageQueueNew (64, 8, &can_msg_queue_attributes);
 
   /* USER CODE BEGIN RTOS_QUEUES */
   /* add queues, ... */
