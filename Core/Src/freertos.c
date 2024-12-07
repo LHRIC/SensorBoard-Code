@@ -193,6 +193,7 @@ void StartDefaultTask(void *argument)
 void start_i2c_adc(void *argument)
 {
   /* USER CODE BEGIN start_i2c_adc */
+  
   /* Infinite loop */
   for(;;)
   {
