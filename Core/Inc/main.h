@@ -57,27 +57,18 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
-#define ADC_0_Pin GPIO_PIN_0
-#define ADC_0_GPIO_Port GPIOA
-#define ADC_1_Pin GPIO_PIN_1
-#define ADC_1_GPIO_Port GPIOA
-#define ADC_2_Pin GPIO_PIN_2
-#define ADC_2_GPIO_Port GPIOA
-#define ADC_3_Pin GPIO_PIN_3
-#define ADC_3_GPIO_Port GPIOA
-#define ADC_4_Pin GPIO_PIN_4
-#define ADC_4_GPIO_Port GPIOA
-#define ADC_5_Pin GPIO_PIN_5
-#define ADC_5_GPIO_Port GPIOA
-#define ADC_6_Pin GPIO_PIN_6
-#define ADC_6_GPIO_Port GPIOA
-#define ADC_7_Pin GPIO_PIN_0
-#define ADC_7_GPIO_Port GPIOB
-#define CAN_SLEEP_Pin GPIO_PIN_8
-#define CAN_SLEEP_GPIO_Port GPIOA
+#define BNO_INT_Pin GPIO_PIN_14
+#define BNO_INT_GPIO_Port GPIOB
+#define BNO_INT_EXTI_IRQn EXTI15_10_IRQn
+#define BNO_RST_Pin GPIO_PIN_15
+#define BNO_RST_GPIO_Port GPIOB
 
 /* USER CODE BEGIN Private defines */
-
+#ifdef __GNUC__
+#define PUTCHAR_PROTOTYPE int __io_putchar(int ch)
+#else
+#define PUTCHAR_PROTOTYPE int fputc(int ch, FILE *f)
+#endif
 /* USER CODE END Private defines */
 
 #ifdef __cplusplus

@@ -9,6 +9,7 @@ Debug/
 *.launch
 .mxproject
 .project
+.metadata
 
 # CMake
 CMakeLists.txt.user
