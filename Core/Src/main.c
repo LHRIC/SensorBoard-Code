@@ -23,6 +23,7 @@
 #include "dma.h"
 #include "gpio.h"
 #include "i2c.h"
+#include "stm32f3xx_hal.h"
 #include "stm32f3xx_hal_can.h"
 #include "stm32f3xx_hal_conf.h"
 #include "tim.h"
@@ -606,6 +607,8 @@ void Error_Handler(void) {
   /* User can add his own implementation to report the HAL error return state */
   __disable_irq();
   while (1) {
+    printf("Error occurred!\r\n");
+    HAL_Delay(1000);
   }
   /* USER CODE END Error_Handler_Debug */
 }
@@ -620,6 +623,7 @@ void Error_Handler(void) {
  */
 void assert_failed(uint8_t *file, uint32_t line) {
   /* USER CODE BEGIN 6 */
+  printf("ASSERT FAILED: %s:%d\r\n", file, line);
   Error_Handler();
   /* User can add his own implementation to report the file name and line
      number, ex: printf("Wrong parameters value: file %s on line %d\r\n", file,
