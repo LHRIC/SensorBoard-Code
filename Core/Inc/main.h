@@ -62,6 +62,8 @@ void Error_Handler(void);
 #define BNO_INT_EXTI_IRQn EXTI15_10_IRQn
 #define BNO_RST_Pin GPIO_PIN_15
 #define BNO_RST_GPIO_Port GPIOB
+#define CAN_SLEEP_Pin GPIO_PIN_8
+#define CAN_SLEEP_GPIO_Port GPIOA
 
 /* USER CODE BEGIN Private defines */
 #ifdef __GNUC__

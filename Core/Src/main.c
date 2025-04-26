@@ -21,13 +21,10 @@
 #include "adc.h"
 #include "can.h"
 #include "dma.h"
-#include "gpio.h"
 #include "i2c.h"
-#include "stm32f3xx_hal.h"
-#include "stm32f3xx_hal_can.h"
-#include "stm32f3xx_hal_conf.h"
 #include "tim.h"
 #include "usart.h"
+#include "gpio.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
