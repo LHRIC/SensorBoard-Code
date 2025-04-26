@@ -64,15 +64,15 @@ PUTCHAR_PROTOTYPE {
 // Use fixed-point scaling for IMU data (3 decimal places of precision)
 #define IMU_DATA_SCALE_FACTOR 1000.0f
 
-#define FAST_SAMPLE_RATE_MS 10  // 100Hz
-#define MED_SAMPLE_RATE_MS 20   // 50Hz
-#define SLOW_SAMPLE_RATE_MS 200 // 5Hz
+#define SAMPLE_PERIOD_100HZ_MS 10
+#define SAMPLE_PERIOD_50HZ_MS 20
+#define SAMPLE_PERIOD_5HZ_MS 200
 
 #define CAN_ID 0x400
 #define CAN_ID_SECONDARY 0x401
 #define CAN_FRAME_SIZE 8
-#define CAN_MESSAGE_GROUP_SIZE 4
-#define CAN_MESSAGE_SECONDARY_GROUP_SIZE 1
+#define NUM_CAN_SIGNALS 4
+#define NUM_CAN_SIGNALS_SECONDARY 1
 
 /* USER CODE END PD */
 
@@ -118,9 +118,9 @@ Mux 3:
   Bits 36-51: Gyroscope Z (16 bits)
 */
 CAN_TxHeaderTypeDef TxHeader;
-uint8_t TxData[CAN_FRAME_SIZE];
-uint8_t MsgBuffers[CAN_MESSAGE_GROUP_SIZE][CAN_FRAME_SIZE] = {{0}};
-bool msgPending[CAN_MESSAGE_GROUP_SIZE] = {false};
+uint8_t TxData[CAN_FRAME_SIZE] = {0};
+uint8_t MsgBuffers[NUM_CAN_SIGNALS][CAN_FRAME_SIZE] = {{0}};
+bool msgPending[NUM_CAN_SIGNALS] = {false};
 
 /*
  * Secondary CAN Frame for additional data
@@ -132,10 +132,9 @@ bool msgPending[CAN_MESSAGE_GROUP_SIZE] = {false};
  * Bits 48-63: Rotation Vector R (16 bits)
  */
 CAN_TxHeaderTypeDef TxHeaderSecondary;
-uint8_t TxDataSecondary[CAN_FRAME_SIZE];
-uint8_t MsgBuffersSecondary[CAN_MESSAGE_SECONDARY_GROUP_SIZE][CAN_FRAME_SIZE] =
-    {{0}};
-bool msgPendingSecondary[CAN_MESSAGE_SECONDARY_GROUP_SIZE] = {false};
+uint8_t TxDataSecondary[CAN_FRAME_SIZE] = {0};
+uint8_t MsgBuffersSecondary[NUM_CAN_SIGNALS_SECONDARY][CAN_FRAME_SIZE] = {{0}};
+bool msgPendingSecondary[NUM_CAN_SIGNALS_SECONDARY] = {false};
 
 uint32_t TxMailbox;
 uint16_t last_adc_values[NUM_ADC_CHANNELS] = {0};
@@ -147,17 +146,18 @@ volatile uint8_t BNO_Ready = 0;
  * ADC 0 = Channel 0, ADC 1 = Channel 1, etc.
  */
 ADC_Sample_Config_t adc_configs[] = {
-    {0, FAST_SAMPLE_RATE_MS, 0}, {1, FAST_SAMPLE_RATE_MS, 0},
-    {2, MED_SAMPLE_RATE_MS, 0},  {3, MED_SAMPLE_RATE_MS, 0},
-    {4, SLOW_SAMPLE_RATE_MS, 0}, {5, SLOW_SAMPLE_RATE_MS, 0},
-    {6, SLOW_SAMPLE_RATE_MS, 0}, {7, SLOW_SAMPLE_RATE_MS, 0}};
+    {0, SAMPLE_PERIOD_5HZ_MS, 0}, {1, SAMPLE_PERIOD_5HZ_MS, 0},
+    {2, SAMPLE_PERIOD_5HZ_MS, 0}, {3, SAMPLE_PERIOD_5HZ_MS, 0},
+    {4, SAMPLE_PERIOD_5HZ_MS, 0}, {5, SAMPLE_PERIOD_5HZ_MS, 0},
+    {6, SAMPLE_PERIOD_5HZ_MS, 0}, {7, SAMPLE_PERIOD_5HZ_MS, 0}};
 
 /**
  * IMU Channel Configuration
  */
-IMU_Sample_Config_t imu_configs[] = {{ACCELEROMETER, MED_SAMPLE_RATE_MS},
-                                     {GYROSCOPE_CALIBRATED, MED_SAMPLE_RATE_MS},
-                                     {ROTATION_VECTOR, MED_SAMPLE_RATE_MS}};
+IMU_Sample_Config_t imu_configs[] = {
+    {ACCELEROMETER, SAMPLE_PERIOD_50HZ_MS},
+    {GYROSCOPE_CALIBRATED, SAMPLE_PERIOD_50HZ_MS},
+    {ROTATION_VECTOR, SAMPLE_PERIOD_50HZ_MS}};
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -195,7 +195,7 @@ uint16_t ADC_DMA_AVG(uint16_t ADC_Pin) {
 
   adc_sum = 0;
   for (i = 0; i < AVG_PER_CHANNEL; i++) {
-    adc_sum += ADC_DMA_BUFF[channel + (i * NUM_ADC_CHANNELS)];
+    adc_sum += ADC_DMA_BUFF[(i * NUM_ADC_CHANNELS) + channel];
   }
 
   return adc_sum / AVG_PER_CHANNEL;
@@ -280,7 +280,7 @@ bool ADC_CAN_Package(uint16_t ADC_Pin) {
 /** IMU HANDLING **/
 
 /**
- * @brief Packages IMU values into CAN packet
+ * @brief Packages Accelerometer and Gyroscope IMU values into 8-byte buffer
  * @param buffer - Pointer to buffer (expected 8 bytes)
  * @param x - X-axis value
  * @param y - Y-axis value
@@ -305,7 +305,7 @@ void IMU_PackAccelGyro(uint8_t *buffer, float x, float y, float z) {
 }
 
 /**
- * @brief Packages IMU values into CAN packet
+ * @brief Packages Rotation Vector IMU values into 8-byte buffer
  * @param buffer - Pointer to buffer (expected 8 bytes)
  * @param i - I-axis value
  * @param j - J-axis value
@@ -405,9 +405,9 @@ void setIMUReports(void) {
  * @retval bool - true if no pending messages
  */
 bool SendPendingCANMessages(void) {
-  bool status;
+  bool status = true;
   // Primary CAN ID
-  for (int i = 0; i < CAN_MESSAGE_GROUP_SIZE; i++) {
+  for (int i = 0; i < NUM_CAN_SIGNALS; i++) {
     if (msgPending[i]) {
       memcpy(TxData, MsgBuffers[i], 8);
       if (HAL_CAN_AddTxMessage(&hcan, &TxHeader, TxData, &TxMailbox) ==
@@ -417,10 +417,12 @@ bool SendPendingCANMessages(void) {
         status = false;
       }
     }
+
+    HAL_Delay(1); // Delay to allow CAN peripheral to process messages
   }
 
   // Secondary CAN ID
-  for (int i = 0; i < CAN_MESSAGE_SECONDARY_GROUP_SIZE; i++) {
+  for (int i = 0; i < NUM_CAN_SIGNALS_SECONDARY; i++) {
     if (msgPendingSecondary[i]) {
       memcpy(TxDataSecondary, MsgBuffersSecondary[i], 8);
       if (HAL_CAN_AddTxMessage(&hcan, &TxHeaderSecondary, TxDataSecondary,
@@ -430,6 +432,8 @@ bool SendPendingCANMessages(void) {
         status = false;
       }
     }
+
+    HAL_Delay(1); // Delay to allow CAN peripheral to process messages
   }
 
   return status;
@@ -437,10 +441,11 @@ bool SendPendingCANMessages(void) {
 /* USER CODE END 0 */
 
 /**
- * @brief  The application entry point.
- * @retval int
- */
-int main(void) {
+  * @brief  The application entry point.
+  * @retval int
+  */
+int main(void)
+{
 
   /* USER CODE BEGIN 1 */
   // Initialize CAN header
@@ -458,8 +463,7 @@ int main(void) {
 
   /* MCU Configuration--------------------------------------------------------*/
 
-  /* Reset of all peripherals, Initializes the Flash interface and the Systick.
-   */
+  /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
   HAL_Init();
 
   /* USER CODE BEGIN Init */
@@ -482,6 +486,7 @@ int main(void) {
   MX_TIM2_Init();
   MX_USART1_UART_Init();
   /* USER CODE BEGIN 2 */
+
   if (HAL_CAN_Start(&hcan) != HAL_OK) {
     printf("Failed to start CAN peripheral\r\n");
     Error_Handler();
@@ -497,13 +502,11 @@ int main(void) {
   // Initialize BNO085
   if (BNO_Init() != HAL_OK) {
     printf("Failed to initialize BNO085\r\n");
-    Error_Handler();
   }
 
   // Set feature reports for IMU
   BNO_setHighAccuracyMode();
   setIMUReports();
-
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -541,52 +544,60 @@ int main(void) {
     }
 
     // Send pending CAN messages
-    SendPendingCANMessages();
+    if (!SendPendingCANMessages()) {
+      printf("Failed to send pending CAN messages\r\n");
+    }
   }
   /* USER CODE END 3 */
 }
 
 /**
- * @brief System Clock Configuration
- * @retval None
- */
-void SystemClock_Config(void) {
+  * @brief System Clock Configuration
+  * @retval None
+  */
+void SystemClock_Config(void)
+{
   RCC_OscInitTypeDef RCC_OscInitStruct = {0};
   RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
   RCC_PeriphCLKInitTypeDef PeriphClkInit = {0};
 
   /** Initializes the RCC Oscillators according to the specified parameters
-   * in the RCC_OscInitTypeDef structure.
-   */
-  RCC_OscInitStruct.OscillatorType =
-      RCC_OSCILLATORTYPE_HSI | RCC_OSCILLATORTYPE_HSE;
+  * in the RCC_OscInitTypeDef structure.
+  */
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI|RCC_OSCILLATORTYPE_HSE;
   RCC_OscInitStruct.HSEState = RCC_HSE_ON;
+  RCC_OscInitStruct.HSEPredivValue = RCC_HSE_PREDIV_DIV2;
   RCC_OscInitStruct.HSIState = RCC_HSI_ON;
   RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
-  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_NONE;
-  if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK) {
+  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
+  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
+  RCC_OscInitStruct.PLL.PLLMUL = RCC_PLL_MUL9;
+  if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
+  {
     Error_Handler();
   }
 
   /** Initializes the CPU, AHB and APB buses clocks
-   */
-  RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK | RCC_CLOCKTYPE_SYSCLK |
-                                RCC_CLOCKTYPE_PCLK1 | RCC_CLOCKTYPE_PCLK2;
-  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_HSE;
+  */
+  RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
+                              |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
+  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
   RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
-  RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
+  RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV2;
   RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
 
-  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_0) != HAL_OK) {
+  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_2) != HAL_OK)
+  {
     Error_Handler();
   }
-  PeriphClkInit.PeriphClockSelection =
-      RCC_PERIPHCLK_USART1 | RCC_PERIPHCLK_I2C1 | RCC_PERIPHCLK_ADC1;
+  PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_USART1|RCC_PERIPHCLK_I2C1
+                              |RCC_PERIPHCLK_ADC1;
   PeriphClkInit.Usart1ClockSelection = RCC_USART1CLKSOURCE_PCLK2;
   PeriphClkInit.I2c1ClockSelection = RCC_I2C1CLKSOURCE_HSI;
   PeriphClkInit.Adc1ClockSelection = RCC_ADC1PCLK2_DIV2;
 
-  if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK) {
+  if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK)
+  {
     Error_Handler();
   }
 }
@@ -596,10 +607,11 @@ void SystemClock_Config(void) {
 /* USER CODE END 4 */
 
 /**
- * @brief  This function is executed in case of error occurrence.
- * @retval None
- */
-void Error_Handler(void) {
+  * @brief  This function is executed in case of error occurrence.
+  * @retval None
+  */
+void Error_Handler(void)
+{
   /* USER CODE BEGIN Error_Handler_Debug */
   /* User can add his own implementation to report the HAL error return state */
   __disable_irq();
@@ -610,15 +622,16 @@ void Error_Handler(void) {
   /* USER CODE END Error_Handler_Debug */
 }
 
-#ifdef USE_FULL_ASSERT
+#ifdef  USE_FULL_ASSERT
 /**
- * @brief  Reports the name of the source file and the source line number
- *         where the assert_param error has occurred.
- * @param  file: pointer to the source file name
- * @param  line: assert_param error line source number
- * @retval None
- */
-void assert_failed(uint8_t *file, uint32_t line) {
+  * @brief  Reports the name of the source file and the source line number
+  *         where the assert_param error has occurred.
+  * @param  file: pointer to the source file name
+  * @param  line: assert_param error line source number
+  * @retval None
+  */
+void assert_failed(uint8_t *file, uint32_t line)
+{
   /* USER CODE BEGIN 6 */
   printf("ASSERT FAILED: %s:%d\r\n", file, line);
   Error_Handler();
