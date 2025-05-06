@@ -852,9 +852,6 @@ HAL_StatusTypeDef BNO_Init(void) {
   HAL_Delay(RESET_DELAY);
   // Start us timer
   start_timer();
-  // Enable interrupt BNO_Ready
-  HAL_NVIC_SetPriority(BNO_INT_EXTI_IRQn, 0, 0);
-  HAL_NVIC_EnableIRQ(BNO_INT_EXTI_IRQn);
   // Delay for RESET_DELAY_US to ensure reset takes effect
   BNO_RST_On;
   HAL_Delay(RESET_DELAY);

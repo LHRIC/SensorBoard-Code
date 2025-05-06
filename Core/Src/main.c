@@ -295,13 +295,21 @@ void IMU_PackAccelGyro(uint8_t *buffer, float x, float y, float z) {
   int16_t y_int = (int16_t)(y * IMU_DATA_SCALE_FACTOR);
   int16_t z_int = (int16_t)(z * IMU_DATA_SCALE_FACTOR);
 
-  // Pack into buffer (little-endian)
-  buffer[0] = x_int & 0xFF;
-  buffer[1] = (x_int >> 8) & 0xFF;
-  buffer[2] = y_int & 0xFF;
-  buffer[3] = (y_int >> 8) & 0xFF;
-  buffer[4] = z_int & 0xFF;
-  buffer[5] = (z_int >> 8) & 0xFF;
+  // Clear buffer
+  memset(buffer, 0, 6);
+
+  // Pack into buffer, leaving first 4 bits for mux nibble
+  buffer[0] |= (x_int & 0x000F) << 4; // Lower 4 bits
+  buffer[1] = (x_int >> 4) & 0xFF;    // Middle 12 bits
+  buffer[2] = (x_int >> 12) & 0x0F; // Upper 4 bits
+
+  buffer[2] |= (y_int & 0x000F) << 4;
+  buffer[3] = (y_int >> 4) & 0xFF;
+  buffer[4] = (y_int >> 12) & 0x0F;
+
+  buffer[4] |= (z_int & 0x000F) << 4;
+  buffer[5] = (z_int >> 4) & 0xFF;
+  buffer[6] = (z_int >> 12) & 0x0F;  
 }
 
 /**
@@ -352,8 +360,8 @@ bool IMU_CAN_Package(uint8_t sensor_id, BNO_SensorValue_t *sensor_data) {
                       sensor_data->SenVal.Accelerometer.Y,
                       sensor_data->SenVal.Accelerometer.Z);
     // Shift values down to make room for mux nibble
-    *MuxBuffer >>= 4;
-    *MuxBuffer |= mux_val;
+    MuxBuffer[0] &= 0xF0;    // Clear lower 4 bits
+    MuxBuffer[0] |= mux_val; // Set mux value
     msgPending[2] = true;
     break;
   case GYROSCOPE_CALIBRATED:
@@ -363,8 +371,8 @@ bool IMU_CAN_Package(uint8_t sensor_id, BNO_SensorValue_t *sensor_data) {
                       sensor_data->SenVal.Gyroscope.Y,
                       sensor_data->SenVal.Gyroscope.Z);
     // Shift values down to make room for mux nibble
-    *MuxBuffer >>= 4;
-    *MuxBuffer |= mux_val;
+    MuxBuffer[0] &= 0xF0;    // Clear lower 4 bits
+    MuxBuffer[0] |= mux_val; // Set mux value
     msgPending[3] = true;
     break;
   case ROTATION_VECTOR:
@@ -373,6 +381,7 @@ bool IMU_CAN_Package(uint8_t sensor_id, BNO_SensorValue_t *sensor_data) {
                            sensor_data->SenVal.RotationVector.J,
                            sensor_data->SenVal.RotationVector.K,
                            sensor_data->SenVal.RotationVector.Real);
+    msgPendingSecondary[0] = true;
     break;
   default:
     return false;
@@ -502,11 +511,14 @@ int main(void)
   // Initialize BNO085
   if (BNO_Init() != HAL_OK) {
     printf("Failed to initialize BNO085\r\n");
+  } else {
+    BNO_setHighAccuracyMode();
+    setIMUReports();
+    printf("BNO085 initialized successfully\r\n");
   }
 
   // Set feature reports for IMU
-  BNO_setHighAccuracyMode();
-  setIMUReports();
+
   /* USER CODE END 2 */
 
   /* Infinite loop */

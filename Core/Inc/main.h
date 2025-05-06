@@ -71,6 +71,7 @@ void Error_Handler(void);
 #else
 #define PUTCHAR_PROTOTYPE int fputc(int ch, FILE *f)
 #endif
+
 /* USER CODE END Private defines */
 
 #ifdef __cplusplus
