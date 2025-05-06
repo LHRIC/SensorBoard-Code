@@ -146,10 +146,10 @@ volatile uint8_t BNO_Ready = 0;
  * ADC 0 = Channel 0, ADC 1 = Channel 1, etc.
  */
 ADC_Sample_Config_t adc_configs[] = {
-    {0, SAMPLE_PERIOD_5HZ_MS, 0}, {1, SAMPLE_PERIOD_5HZ_MS, 0},
-    {2, SAMPLE_PERIOD_5HZ_MS, 0}, {3, SAMPLE_PERIOD_5HZ_MS, 0},
-    {4, SAMPLE_PERIOD_5HZ_MS, 0}, {5, SAMPLE_PERIOD_5HZ_MS, 0},
-    {6, SAMPLE_PERIOD_5HZ_MS, 0}, {7, SAMPLE_PERIOD_5HZ_MS, 0}};
+    {0, SAMPLE_PERIOD_100HZ_MS, 0}, {1, SAMPLE_PERIOD_100HZ_MS, 0},
+    {2, SAMPLE_PERIOD_100HZ_MS, 0}, {3, SAMPLE_PERIOD_100HZ_MS, 0},
+    {4, SAMPLE_PERIOD_100HZ_MS, 0}, {5, SAMPLE_PERIOD_100HZ_MS, 0},
+    {6, SAMPLE_PERIOD_100HZ_MS, 0}, {7, SAMPLE_PERIOD_100HZ_MS, 0}};
 
 /**
  * IMU Channel Configuration
