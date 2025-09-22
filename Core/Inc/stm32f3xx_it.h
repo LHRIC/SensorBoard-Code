@@ -1,9 +1,8 @@
 /* USER CODE BEGIN Header */
 /**
   ******************************************************************************
-  * @file           : main.h
-  * @brief          : Header for main.c file.
-  *                   This file contains the common defines of the application.
+  * @file    stm32f3xx_it.h
+  * @brief   This file contains the headers of the interrupt handlers.
   ******************************************************************************
   * @attention
   *
@@ -19,15 +18,12 @@
 /* USER CODE END Header */
 
 /* Define to prevent recursive inclusion -------------------------------------*/
-#ifndef __MAIN_H
-#define __MAIN_H
+#ifndef __STM32F3xx_IT_H
+#define __STM32F3xx_IT_H
 
 #ifdef __cplusplus
-extern "C" {
+ extern "C" {
 #endif
-
-/* Includes ------------------------------------------------------------------*/
-#include "stm32f3xx_hal.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -50,32 +46,24 @@ extern "C" {
 /* USER CODE END EM */
 
 /* Exported functions prototypes ---------------------------------------------*/
-void Error_Handler(void);
-
+void NMI_Handler(void);
+void HardFault_Handler(void);
+void MemManage_Handler(void);
+void BusFault_Handler(void);
+void UsageFault_Handler(void);
+void SVC_Handler(void);
+void DebugMon_Handler(void);
+void PendSV_Handler(void);
+void SysTick_Handler(void);
+void DMA1_Channel1_IRQHandler(void);
+void CAN_RX0_IRQHandler(void);
+void EXTI15_10_IRQHandler(void);
 /* USER CODE BEGIN EFP */
 
 /* USER CODE END EFP */
-
-/* Private defines -----------------------------------------------------------*/
-#define BNO_INT_Pin GPIO_PIN_14
-#define BNO_INT_GPIO_Port GPIOB
-#define BNO_INT_EXTI_IRQn EXTI15_10_IRQn
-#define BNO_RST_Pin GPIO_PIN_15
-#define BNO_RST_GPIO_Port GPIOB
-#define CAN_SLEEP_Pin GPIO_PIN_8
-#define CAN_SLEEP_GPIO_Port GPIOA
-
-/* USER CODE BEGIN Private defines */
-#ifdef __GNUC__
-#define PUTCHAR_PROTOTYPE int __io_putchar(int ch)
-#else
-#define PUTCHAR_PROTOTYPE int fputc(int ch, FILE *f)
-#endif
-
-/* USER CODE END Private defines */
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* __MAIN_H */
+#endif /* __STM32F3xx_IT_H */
