@@ -21,14 +21,16 @@
 #include "adc.h"
 #include "can.h"
 #include "dma.h"
+#include "gpio.h"
 #include "i2c.h"
+#include "stm32f3xx_hal.h"
 #include "tim.h"
 #include "usart.h"
-#include "gpio.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "BNO_08X_I2C.h"
+#include "lsm6dso.h"
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -301,7 +303,7 @@ void IMU_PackAccelGyro(uint8_t *buffer, float x, float y, float z) {
   // Pack into buffer, leaving first 4 bits for mux nibble
   buffer[0] |= (x_int & 0x000F) << 4; // Lower 4 bits
   buffer[1] = (x_int >> 4) & 0xFF;    // Middle 12 bits
-  buffer[2] = (x_int >> 12) & 0x0F; // Upper 4 bits
+  buffer[2] = (x_int >> 12) & 0x0F;   // Upper 4 bits
 
   buffer[2] |= (y_int & 0x000F) << 4;
   buffer[3] = (y_int >> 4) & 0xFF;
@@ -309,7 +311,7 @@ void IMU_PackAccelGyro(uint8_t *buffer, float x, float y, float z) {
 
   buffer[4] |= (z_int & 0x000F) << 4;
   buffer[5] = (z_int >> 4) & 0xFF;
-  buffer[6] = (z_int >> 12) & 0x0F;  
+  buffer[6] = (z_int >> 12) & 0x0F;
 }
 
 /**
@@ -407,6 +409,83 @@ void setIMUReports(void) {
   }
 }
 
+int initLSM6DSO() {
+  LSM6DSO_Object_t lsm6dso_obj;
+  uint8_t whoami = 0;
+  
+  /* Setup I2C IO interface */
+  if (LSM6DSO_I2C_SetupIO(&lsm6dso_obj) != LSM6DSO_OK) {
+    printf("Failed to setup LSM6DSO I2C IO\r\n");
+    return LSM6DSO_ERROR;
+  }
+  
+  /* Initialize the driver */
+  if (LSM6DSO_Init(&lsm6dso_obj) != LSM6DSO_OK) {
+    printf("Failed to initialize LSM6DSO\r\n");
+    return LSM6DSO_ERROR;
+  }
+  
+  /* Read and verify WHO_AM_I register */
+  if (LSM6DSO_ReadID(&lsm6dso_obj, &whoami) != LSM6DSO_OK) {
+    printf("Failed to read LSM6DSO WHO_AM_I\r\n");
+    return LSM6DSO_ERROR;
+  }
+  printf("LSM6DSO WHO_AM_I: 0x%02X (expected 0x6C)\r\n", whoami);
+  
+  /* Set accelerometer full scale and output data rate */
+  if (LSM6DSO_ACC_SetFullScale(&lsm6dso_obj, 2) != LSM6DSO_OK) {
+    printf("Failed to set accelerometer full scale\r\n");
+    return LSM6DSO_ERROR;
+  }
+  
+  if (LSM6DSO_ACC_SetOutputDataRate(&lsm6dso_obj, 104.0f) != LSM6DSO_OK) {
+    printf("Failed to set accelerometer output data rate\r\n");
+    return LSM6DSO_ERROR;
+  }
+  
+  /* Enable accelerometer */
+  if (LSM6DSO_ACC_Enable(&lsm6dso_obj) != LSM6DSO_OK) {
+    printf("Failed to enable accelerometer\r\n");
+    return LSM6DSO_ERROR;
+  }
+  
+  /* Set gyroscope full scale and output data rate */
+  if (LSM6DSO_GYRO_SetFullScale(&lsm6dso_obj, 125) != LSM6DSO_OK) {
+    printf("Failed to set gyroscope full scale\r\n");
+    return LSM6DSO_ERROR;
+  }
+  
+  if (LSM6DSO_GYRO_SetOutputDataRate(&lsm6dso_obj, 104.0f) != LSM6DSO_OK) {
+    printf("Failed to set gyroscope output data rate\r\n");
+    return LSM6DSO_ERROR;
+  }
+  
+  /* Enable gyroscope */
+  if (LSM6DSO_GYRO_Enable(&lsm6dso_obj) != LSM6DSO_OK) {
+    printf("Failed to enable gyroscope\r\n");
+    return LSM6DSO_ERROR;
+  }
+  
+  printf("LSM6DSO initialized successfully\r\n");
+  
+  /* Read sensor data in a loop */
+  while (1) {
+    LSM6DSO_Axes_t accel, gyro;
+    
+    if (LSM6DSO_ACC_GetAxes(&lsm6dso_obj, &accel) == LSM6DSO_OK) {
+      printf("Accel - X: %d, Y: %d, Z: %d\r\n", accel.x, accel.y, accel.z);
+    }
+    
+    if (LSM6DSO_GYRO_GetAxes(&lsm6dso_obj, &gyro) == LSM6DSO_OK) {
+      printf("Gyro - X: %d, Y: %d, Z: %d\r\n", gyro.x, gyro.y, gyro.z);
+    }
+    
+    HAL_Delay(1000);
+  }
+
+  return LSM6DSO_OK;
+}
+
 /** CAN HANDLING **/
 
 /**
@@ -450,11 +529,10 @@ bool SendPendingCANMessages(void) {
 /* USER CODE END 0 */
 
 /**
-  * @brief  The application entry point.
-  * @retval int
-  */
-int main(void)
-{
+ * @brief  The application entry point.
+ * @retval int
+ */
+int main(void) {
 
   /* USER CODE BEGIN 1 */
   // Initialize CAN header
@@ -472,7 +550,8 @@ int main(void)
 
   /* MCU Configuration--------------------------------------------------------*/
 
-  /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
+  /* Reset of all peripherals, Initializes the Flash interface and the Systick.
+   */
   HAL_Init();
 
   /* USER CODE BEGIN Init */
@@ -505,6 +584,11 @@ int main(void)
   if (HAL_ADC_Start_DMA(&hadc1, (uint32_t *)ADC_DMA_BUFF,
                         NUM_ADC_CHANNELS * AVG_PER_CHANNEL) != HAL_OK) {
     printf("Failed to start ADC DMA\r\n");
+    Error_Handler();
+  }
+
+  if (initLSM6DSO() != LSM6DSO_OK) {
+    printf("Failed to initialize LSM6DSO\r\n");
     Error_Handler();
   }
 
@@ -564,19 +648,19 @@ int main(void)
 }
 
 /**
-  * @brief System Clock Configuration
-  * @retval None
-  */
-void SystemClock_Config(void)
-{
+ * @brief System Clock Configuration
+ * @retval None
+ */
+void SystemClock_Config(void) {
   RCC_OscInitTypeDef RCC_OscInitStruct = {0};
   RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
   RCC_PeriphCLKInitTypeDef PeriphClkInit = {0};
 
   /** Initializes the RCC Oscillators according to the specified parameters
-  * in the RCC_OscInitTypeDef structure.
-  */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI|RCC_OSCILLATORTYPE_HSE;
+   * in the RCC_OscInitTypeDef structure.
+   */
+  RCC_OscInitStruct.OscillatorType =
+      RCC_OSCILLATORTYPE_HSI | RCC_OSCILLATORTYPE_HSE;
   RCC_OscInitStruct.HSEState = RCC_HSE_ON;
   RCC_OscInitStruct.HSEPredivValue = RCC_HSE_PREDIV_DIV2;
   RCC_OscInitStruct.HSIState = RCC_HSI_ON;
@@ -584,32 +668,29 @@ void SystemClock_Config(void)
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
   RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
   RCC_OscInitStruct.PLL.PLLMUL = RCC_PLL_MUL9;
-  if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
-  {
+  if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK) {
     Error_Handler();
   }
 
   /** Initializes the CPU, AHB and APB buses clocks
-  */
-  RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
-                              |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
+   */
+  RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK | RCC_CLOCKTYPE_SYSCLK |
+                                RCC_CLOCKTYPE_PCLK1 | RCC_CLOCKTYPE_PCLK2;
   RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
   RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
   RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV2;
   RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
 
-  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_2) != HAL_OK)
-  {
+  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_2) != HAL_OK) {
     Error_Handler();
   }
-  PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_USART1|RCC_PERIPHCLK_I2C1
-                              |RCC_PERIPHCLK_ADC1;
+  PeriphClkInit.PeriphClockSelection =
+      RCC_PERIPHCLK_USART1 | RCC_PERIPHCLK_I2C1 | RCC_PERIPHCLK_ADC1;
   PeriphClkInit.Usart1ClockSelection = RCC_USART1CLKSOURCE_PCLK2;
   PeriphClkInit.I2c1ClockSelection = RCC_I2C1CLKSOURCE_HSI;
   PeriphClkInit.Adc1ClockSelection = RCC_ADC1PCLK2_DIV2;
 
-  if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK)
-  {
+  if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK) {
     Error_Handler();
   }
 }
@@ -619,11 +700,10 @@ void SystemClock_Config(void)
 /* USER CODE END 4 */
 
 /**
-  * @brief  This function is executed in case of error occurrence.
-  * @retval None
-  */
-void Error_Handler(void)
-{
+ * @brief  This function is executed in case of error occurrence.
+ * @retval None
+ */
+void Error_Handler(void) {
   /* USER CODE BEGIN Error_Handler_Debug */
   /* User can add his own implementation to report the HAL error return state */
   __disable_irq();
@@ -634,16 +714,15 @@ void Error_Handler(void)
   /* USER CODE END Error_Handler_Debug */
 }
 
-#ifdef  USE_FULL_ASSERT
+#ifdef USE_FULL_ASSERT
 /**
-  * @brief  Reports the name of the source file and the source line number
-  *         where the assert_param error has occurred.
-  * @param  file: pointer to the source file name
-  * @param  line: assert_param error line source number
-  * @retval None
-  */
-void assert_failed(uint8_t *file, uint32_t line)
-{
+ * @brief  Reports the name of the source file and the source line number
+ *         where the assert_param error has occurred.
+ * @param  file: pointer to the source file name
+ * @param  line: assert_param error line source number
+ * @retval None
+ */
+void assert_failed(uint8_t *file, uint32_t line) {
   /* USER CODE BEGIN 6 */
   printf("ASSERT FAILED: %s:%d\r\n", file, line);
   Error_Handler();

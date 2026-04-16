@@ -21,7 +21,8 @@
 #include "i2c.h"
 
 /* USER CODE BEGIN 0 */
-
+#include "lsm6dso.h"
+#include <stdio.h>
 /* USER CODE END 0 */
 
 I2C_HandleTypeDef hi2c1;
@@ -134,5 +135,59 @@ void HAL_I2C_MspDeInit(I2C_HandleTypeDef* i2cHandle)
 }
 
 /* USER CODE BEGIN 1 */
+
+/* LSM6DSO I2C Wrapper Functions */
+
+
+#define LSM6SO_I2C_ADDR LSM6DSO_I2C_ADD_L
+
+static int32_t LSM6DSO_I2C_Init(void) {
+  return LSM6DSO_OK;
+}
+
+static int32_t LSM6DSO_I2C_DeInit(void) {
+  return LSM6DSO_OK;
+}
+
+static int32_t LSM6DSO_I2C_ReadReg(uint16_t Addr, uint16_t Reg, uint8_t *pData, uint16_t Length) {
+  HAL_StatusTypeDef status = HAL_I2C_Mem_Read(&hi2c1, (uint8_t)(Addr << 1), (uint16_t)Reg, I2C_MEMADD_SIZE_8BIT, pData, Length, HAL_MAX_DELAY);
+  if (status != HAL_OK) {
+    printf("I2C Read Failed: Addr=0x%02X, Reg=0x%02X, Status=%d\r\n", (uint8_t)Addr, (uint8_t)Reg, status);
+    return LSM6DSO_ERROR;
+  }
+  return LSM6DSO_OK;
+}
+
+static int32_t LSM6DSO_I2C_WriteReg(uint16_t Addr, uint16_t Reg, uint8_t *pData, uint16_t Length) {
+  HAL_StatusTypeDef status = HAL_I2C_Mem_Write(&hi2c1, (uint8_t)(Addr << 1), (uint16_t)Reg, I2C_MEMADD_SIZE_8BIT, pData, Length, HAL_MAX_DELAY);
+  if (status != HAL_OK) {
+    printf("I2C Write Failed: Addr=0x%02X, Reg=0x%02X, Status=%d\r\n", (uint8_t)Addr, (uint8_t)Reg, status);
+    return LSM6DSO_ERROR;
+  }
+  return LSM6DSO_OK;
+}
+
+static int32_t LSM6DSO_GetTick(void) {
+  return (int32_t)HAL_GetTick();
+}
+
+static void LSM6DSO_Delay(uint32_t ms) {
+  HAL_Delay(ms);
+}
+
+int32_t LSM6DSO_I2C_SetupIO(LSM6DSO_Object_t *pObj) {
+  LSM6DSO_IO_t IO_ctx;
+  
+  IO_ctx.Init = LSM6DSO_I2C_Init;
+  IO_ctx.DeInit = LSM6DSO_I2C_DeInit;
+  IO_ctx.BusType = LSM6DSO_I2C_BUS;
+  IO_ctx.Address = LSM6SO_I2C_ADDR;
+  IO_ctx.WriteReg = LSM6DSO_I2C_WriteReg;
+  IO_ctx.ReadReg = LSM6DSO_I2C_ReadReg;
+  IO_ctx.GetTick = LSM6DSO_GetTick;
+  IO_ctx.Delay = LSM6DSO_Delay;
+  
+  return LSM6DSO_RegisterBusIO(pObj, &IO_ctx);
+}
 
 /* USER CODE END 1 */

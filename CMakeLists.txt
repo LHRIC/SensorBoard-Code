@@ -53,11 +53,14 @@ target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user sources here
     Core/Src/BNO_08X_I2C.c
+    Libraries/stm32-lsm6dso/lsm6dso.c
+    Libraries/stm32-lsm6dso/lsm6dso_reg.c
 )
 
 # Add include paths
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user defined include paths
+    Libraries/stm32-lsm6dso
 )
 
 # Add project symbols (macros)

@@ -29,7 +29,7 @@ extern "C" {
 #include "main.h"
 
 /* USER CODE BEGIN Includes */
-
+#include "lsm6dso.h"
 /* USER CODE END Includes */
 
 extern I2C_HandleTypeDef hi2c1;
@@ -41,7 +41,7 @@ extern I2C_HandleTypeDef hi2c1;
 void MX_I2C1_Init(void);
 
 /* USER CODE BEGIN Prototypes */
-
+int32_t LSM6DSO_I2C_SetupIO(LSM6DSO_Object_t *pObj);
 /* USER CODE END Prototypes */
 
 #ifdef __cplusplus
