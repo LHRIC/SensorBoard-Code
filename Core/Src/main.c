@@ -29,6 +29,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "BNO_08X_I2C.h"
+#include "GNSS.h"
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -70,9 +71,11 @@ PUTCHAR_PROTOTYPE {
 
 #define CAN_ID 0x400
 #define CAN_ID_SECONDARY 0x401
+#define CAN_ID_GPS 0x402
 #define CAN_FRAME_SIZE 8
 #define NUM_CAN_SIGNALS 4
 #define NUM_CAN_SIGNALS_SECONDARY 1
+#define NUM_CAN_SIGNALS_GPS 2
 
 /* USER CODE END PD */
 
@@ -136,9 +139,32 @@ uint8_t TxDataSecondary[CAN_FRAME_SIZE] = {0};
 uint8_t MsgBuffersSecondary[NUM_CAN_SIGNALS_SECONDARY][CAN_FRAME_SIZE] = {{0}};
 bool msgPendingSecondary[NUM_CAN_SIGNALS_SECONDARY] = {false};
 
+/*
+ * GPS CAN Frame for PVT Data
+ * 
+ * Mux 0 (Latitude + Longitude):
+ *   Bits 0-3: Mux = 0
+ *   Bits 4-35: Latitude (int32_t, raw 1e-7 degrees)
+ *   Bits 36-63: Longitude (int32_t, raw 1e-7 degrees, uses 28 bits)
+ *
+ * Mux 1 (Velocity + Heading + Time + Fix):
+ *   Bits 0-3: Mux = 1
+ *   Bits 4-19: Velocity (int16_t, mm/s)
+ *   Bits 20-31: Heading (uint16_t, 0-3599 representing 0-359.9°)
+ *   Bits 32-55: Time of day in seconds (uint24_t, using tv_sec % 86400)
+ *   Bits 56-62: Fix type (3 bits)
+ *   Bit 63: Fix valid flag
+ */
+CAN_TxHeaderTypeDef TxHeaderGPS;
+uint8_t TxDataGPS[CAN_FRAME_SIZE] = {0};
+uint8_t MsgBuffersGPS[NUM_CAN_SIGNALS_GPS][CAN_FRAME_SIZE] = {{0}};
+bool msgPendingGPS[NUM_CAN_SIGNALS_GPS] = {false};
+
 uint32_t TxMailbox;
 uint16_t last_adc_values[NUM_ADC_CHANNELS] = {0};
 volatile uint8_t BNO_Ready = 0;
+GNSS_StateHandle GNSS_Handle;
+uint32_t gps_last_sample_time = 0;
 
 /*
  * ADC Channel Configuration
@@ -391,6 +417,89 @@ bool IMU_CAN_Package(uint8_t sensor_id, BNO_SensorValue_t *sensor_data) {
 }
 
 /**
+ * @brief Packages GPS PVT data into CAN frame (Mux 0: Latitude + Longitude)
+ */
+bool GPS_CAN_Package_Position(GNSS_StateHandle *gps_data) {
+  if (!gps_data || !gps_data->valid) {
+    return false;
+  }
+
+  uint8_t *MuxBuffer = MsgBuffersGPS[0];
+  
+  // Clear buffer
+  memset(MuxBuffer, 0, CAN_FRAME_SIZE);
+  
+  // Set mux value to 0
+  MuxBuffer[0] = 0;
+  
+  // Pack latitude (int32_t at bits 4-35)
+  int32_t lat = gps_data->lat;
+  MuxBuffer[0] |= ((lat >> 28) & 0x0F);  // Upper 4 bits into lower nibble of byte 0
+  MuxBuffer[1] = (lat >> 20) & 0xFF;     // Byte 1
+  MuxBuffer[2] = (lat >> 12) & 0xFF;     // Byte 2
+  MuxBuffer[3] = (lat >> 4) & 0xFF;      // Byte 3
+  MuxBuffer[4] = ((lat & 0x0F) << 4);    // Lower 4 bits into upper nibble of byte 4
+  
+  // Pack longitude (int32_t at bits 36-63, 28 bits used)
+  int32_t lon = gps_data->lon;
+  MuxBuffer[4] |= ((lon >> 24) & 0x0F);  // Upper 4 bits into lower nibble of byte 4
+  MuxBuffer[5] = (lon >> 16) & 0xFF;     // Byte 5
+  MuxBuffer[6] = (lon >> 8) & 0xFF;      // Byte 6
+  MuxBuffer[7] = lon & 0xFF;             // Byte 7
+  
+  msgPendingGPS[0] = true;
+  return true;
+}
+
+/**
+ * @brief Packages GPS PVT data into CAN frame (Mux 1: Velocity + Heading + Time + Fix)
+ */
+bool GPS_CAN_Package_TimeVelocity(GNSS_StateHandle *gps_data) {
+  if (!gps_data || !gps_data->valid) {
+    return false;
+  }
+
+  uint8_t *MuxBuffer = MsgBuffersGPS[1];
+  
+  // Clear buffer
+  memset(MuxBuffer, 0, CAN_FRAME_SIZE);
+  
+  // Set mux value to 1
+  MuxBuffer[0] = 1;
+  
+  // Pack velocity (int16_t in mm/s at bits 4-19)
+  int16_t velocity = (int16_t)(gps_data->gSpeed & 0xFFFF);
+  MuxBuffer[0] |= ((velocity >> 12) & 0x0F);  // Upper 4 bits into lower nibble of byte 0
+  MuxBuffer[1] = (velocity >> 4) & 0xFF;      // Byte 1
+  MuxBuffer[2] = ((velocity & 0x0F) << 4);    // Lower 4 bits into upper nibble of byte 2
+  
+  // Pack heading (uint16_t at bits 20-31, representing 0-359.9°)
+  // Scale heading to 0-3599 range (0.1° per unit)
+  uint16_t heading = (uint16_t)((gps_data->headMot / 360.0) * 3600) % 3600;
+  MuxBuffer[2] |= ((heading >> 8) & 0x0F);    // Upper 4 bits into lower nibble of byte 2
+  MuxBuffer[3] = heading & 0xFF;              // Byte 3
+  
+  // Pack time of day in seconds (uint24_t at bits 32-55)
+  // Use seconds within the day (tv_sec % 86400)
+  uint32_t time_of_day = gps_data->time.tv_sec % 86400;
+  MuxBuffer[4] = (time_of_day >> 16) & 0xFF; // Byte 4
+  MuxBuffer[5] = (time_of_day >> 8) & 0xFF;  // Byte 5
+  MuxBuffer[6] = time_of_day & 0xFF;         // Byte 6
+  
+  // Pack fix type (3 bits at bits 56-62)
+  uint8_t fix_type = gps_data->fixType & 0x07;
+  MuxBuffer[6] |= (fix_type << 5);
+  
+  // Pack fix valid flag (1 bit at bit 63)
+  if (gps_data->valid) {
+    MuxBuffer[7] = 0x80;  // Set bit 7
+  }
+  
+  msgPendingGPS[1] = true;
+  return true;
+}
+
+/**
  * @brief Sets IMU reports for all sensors
  */
 void setIMUReports(void) {
@@ -445,6 +554,21 @@ bool SendPendingCANMessages(void) {
     HAL_Delay(1); // Delay to allow CAN peripheral to process messages
   }
 
+  // GPS CAN ID
+  for (int i = 0; i < NUM_CAN_SIGNALS_GPS; i++) {
+    if (msgPendingGPS[i]) {
+      memcpy(TxDataGPS, MsgBuffersGPS[i], 8);
+      if (HAL_CAN_AddTxMessage(&hcan, &TxHeaderGPS, TxDataGPS, &TxMailbox) ==
+          HAL_OK) {
+        msgPendingGPS[i] = false;
+      } else {
+        status = false;
+      }
+    }
+
+    HAL_Delay(1); // Delay to allow CAN peripheral to process messages
+  }
+
   return status;
 }
 /* USER CODE END 0 */
@@ -468,6 +592,12 @@ int main(void)
   TxHeaderSecondary.IDE = CAN_ID_STD;
   TxHeaderSecondary.RTR = CAN_RTR_DATA;
   TxHeaderSecondary.DLC = 8;
+
+  // Initialize GPS CAN header
+  TxHeaderGPS.StdId = CAN_ID_GPS;
+  TxHeaderGPS.IDE = CAN_ID_STD;
+  TxHeaderGPS.RTR = CAN_RTR_DATA;
+  TxHeaderGPS.DLC = 8;
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -501,21 +631,24 @@ int main(void)
     Error_Handler();
   }
 
+  GNSS_Init(&GNSS_Handle, &hi2c1);
+  printf("GNSS initialized\r\n");
+
   // Start ADC DMA
-  if (HAL_ADC_Start_DMA(&hadc1, (uint32_t *)ADC_DMA_BUFF,
-                        NUM_ADC_CHANNELS * AVG_PER_CHANNEL) != HAL_OK) {
-    printf("Failed to start ADC DMA\r\n");
-    Error_Handler();
-  }
+  // if (HAL_ADC_Start_DMA(&hadc1, (uint32_t *)ADC_DMA_BUFF,
+  //                       NUM_ADC_CHANNELS * AVG_PER_CHANNEL) != HAL_OK) {
+  //   printf("Failed to start ADC DMA\r\n");
+  //   Error_Handler();
+  // }
 
   // Initialize BNO085
-  if (BNO_Init() != HAL_OK) {
-    printf("Failed to initialize BNO085\r\n");
-  } else {
-    BNO_setHighAccuracyMode();
-    setIMUReports();
-    printf("BNO085 initialized successfully\r\n");
-  }
+  // if (BNO_Init() != HAL_OK) {
+  //   printf("Failed to initialize BNO085\r\n");
+  // } else {
+  //   BNO_setHighAccuracyMode();
+  //   setIMUReports();
+  //   printf("BNO085 initialized successfully\r\n");
+  // }
 
   // Set feature reports for IMU
 
@@ -555,9 +688,34 @@ int main(void)
       }
     }
 
+    if ((current_time - gps_last_sample_time) >= 200U) {
+      GNSS_GetPVTData(&GNSS_Handle);
+      GNSS_ParseBuffer(&GNSS_Handle);
+
+      if (GNSS_Handle.valid) {
+        printf("GPS %04u-%02u-%02u %02u:%02u:%02u.%09ld lat=%f lon=%f fix=%u sv=%u\r\n",
+               (unsigned)GNSS_Handle.year, (unsigned)GNSS_Handle.month,
+               (unsigned)GNSS_Handle.day, (unsigned)GNSS_Handle.hour,
+               (unsigned)GNSS_Handle.min, (unsigned)GNSS_Handle.sec,
+               (long)GNSS_Handle.time.tv_nsec, GNSS_Handle.fLat,
+               GNSS_Handle.fLon, (unsigned)GNSS_Handle.fixType,
+               (unsigned)GNSS_Handle.numSV);
+        
+        // Package GPS data into CAN frames
+        GPS_CAN_Package_Position(&GNSS_Handle);
+        GPS_CAN_Package_TimeVelocity(&GNSS_Handle);
+      } else {
+        printf("GNSS link=%s fix=%u sv=%u\r\n",
+               GNSS_Handle.comm_ok ? "ok" : "fail",
+               (unsigned)GNSS_Handle.fixType, (unsigned)GNSS_Handle.numSV);
+      }
+
+      gps_last_sample_time = current_time;
+    }
+
     // Send pending CAN messages
     if (!SendPendingCANMessages()) {
-      printf("Failed to send pending CAN messages\r\n");
+      // printf("Failed to send pending CAN messages\r\n");
     }
   }
   /* USER CODE END 3 */
